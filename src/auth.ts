@@ -181,6 +181,77 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
 // Interactive OAuth browser flow
 // ---------------------------------------------------------------------------
 
+/**
+ * Minimal subset of http.Server that {@link waitForOAuthCallback} relies on.
+ * Extracted as an interface so tests can supply a fake without spinning up a
+ * real socket.
+ */
+export interface OAuthCallbackServer {
+  on(event: 'request', listener: (req: any, res: any) => void): unknown;
+  close(): unknown;
+}
+
+/**
+ * Awaits the OAuth callback request from the user's browser.
+ *
+ * Resolves with the `code` query param after validating the `state` matches.
+ * Rejects on `error` query param, or after `timeoutMs` elapses without any
+ * matching callback. Always cleans up the timer and closes the server before
+ * settling.
+ *
+ * Exported for tests; production callers go through {@link authenticate}.
+ */
+export function waitForOAuthCallback(
+  server: OAuthCallbackServer,
+  port: number,
+  expectedState: string,
+  timeoutMs: number
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      server.close();
+      reject(
+        new Error(
+          `OAuth callback not received within ${timeoutMs / 1000}s. ` +
+            'Please re-run the auth command and complete the browser authorization.'
+        )
+      );
+    }, timeoutMs);
+
+    server.on('request', (req, res) => {
+      const url = new URL(req.url!, `http://localhost:${port}`);
+
+      // Validate state before any other processing to prevent CSRF.
+      const returnedState = url.searchParams.get('state');
+      if (returnedState !== expectedState) {
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end('<h1>Invalid state parameter</h1><p>Possible CSRF attack. Please try again.</p>');
+        return;
+      }
+
+      const authCode = url.searchParams.get('code');
+      const error = url.searchParams.get('error');
+
+      if (error) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h1>Authorization failed</h1><p>You can close this tab.</p>');
+        clearTimeout(timeout);
+        server.close();
+        reject(new Error(`Authorization error: ${error}`));
+        return;
+      }
+
+      if (authCode) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h1>Authorization successful!</h1><p>You can close this tab.</p>');
+        clearTimeout(timeout);
+        server.close();
+        resolve(authCode);
+      }
+    });
+  });
+}
+
 async function authenticate(): Promise<OAuth2Client> {
   const { client_secret, client_id } = await loadClientSecrets();
 
@@ -203,42 +274,7 @@ async function authenticate(): Promise<OAuth2Client> {
   logger.info('Authorize this app by visiting this url:', authorizeUrl);
 
   const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
-  const timeout = setTimeout(() => {
-    server.close();
-  }, AUTH_TIMEOUT_MS);
-
-  // Wait for the OAuth callback
-  const code = await new Promise<string>((resolve, reject) => {
-    server.on('request', (req, res) => {
-      const url = new URL(req.url!, `http://localhost:${port}`);
-      const authCode = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-
-      if (error) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Authorization failed</h1><p>You can close this tab.</p>');
-        reject(new Error(`Authorization error: ${error}`));
-        clearTimeout(timeout);
-        server.close();
-        return;
-      }
-
-      const returnedState = url.searchParams.get('state');
-      if (returnedState !== state) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end('<h1>Invalid state parameter</h1><p>Possible CSRF attack. Please try again.</p>');
-        return;
-      }
-
-      if (authCode) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Authorization successful!</h1><p>You can close this tab.</p>');
-        resolve(authCode);
-        clearTimeout(timeout);
-        server.close();
-      }
-    });
-  });
+  const code = await waitForOAuthCallback(server, port, state, AUTH_TIMEOUT_MS);
 
   const { tokens } = await oAuth2Client.getToken(code);
   oAuth2Client.setCredentials(tokens);

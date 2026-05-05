@@ -13,7 +13,7 @@ Thanks for your interest in contributing! This guide covers how to set up the pr
 ### Clone and Build
 
 ```bash
-git clone https://github.com/a-bonus/google-docs-mcp.git
+git clone https://github.com/fryorcraken/google-docs-mcp.git
 cd google-docs-mcp
 npm install
 npm run build
@@ -164,4 +164,4 @@ Releases are automated via GitHub Actions. To publish a new version:
 3. Tag the commit: `git tag v1.2.3 && git push origin v1.2.3`
 4. The [release workflow](.github/workflows/release.yml) will run CI checks, publish to npm, and create a GitHub Release
 
-The npm package is published as `@a-bonus/google-docs-mcp`.
+The npm package is published as `@fryorcraken/google-docs-mcp`.

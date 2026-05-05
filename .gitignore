@@ -10,4 +10,8 @@ token.json
 *.log
 
 # Environment variables (if you use a .env file later)
-.env* 
+.env*
+
+# Repomix bundles
+.repomix/
+repomix-output.*
