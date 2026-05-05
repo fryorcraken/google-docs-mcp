@@ -1397,3 +1397,85 @@ export function findTabById(
 
   return searchTabs(doc.tabs);
 }
+
+// --- Tab resolution ---
+
+/**
+ * Resolution outcome from {@link resolveTab}.
+ */
+export interface TabResolution {
+  /**
+   * The tab to operate on. `undefined` only when the document has no tabs
+   * at all (legacy `body`-only document).
+   */
+  tabId: string | undefined;
+  /** True when the document has at least one tab. */
+  isTabbed: boolean;
+  /** First tab's ID if the doc is tabbed; useful for error messages. */
+  firstTabId: string | undefined;
+}
+
+/**
+ * Resolves which tab a tool should operate on.
+ *
+ * - For documents without tabs (legacy `body`-only), returns
+ *   `{ isTabbed: false, tabId: undefined, firstTabId: undefined }`.
+ *   Tools should fall back to their existing `body`-mask behavior.
+ * - For tabbed documents:
+ *   - If `requestedTabId` is provided and matches an existing tab,
+ *     returns that ID.
+ *   - If `requestedTabId` is provided but doesn't match, throws
+ *     `UserError` listing the available tab IDs.
+ *   - If `requestedTabId` is `undefined`, defaults to the first tab.
+ *
+ * Cost: one `documents.get` per call with a minimal field mask
+ * (`tabs(tabProperties.tabId)`). Each tool incurs this RTT once per
+ * invocation. We accept the cost because the alternative — requiring
+ * every caller to know in advance whether a doc is tabbed — is what
+ * caused the fleet of bugs this helper exists to fix (issue #1).
+ */
+export async function resolveTab(
+  docs: Docs,
+  documentId: string,
+  requestedTabId?: string
+): Promise<TabResolution> {
+  const res = await docs.documents.get({
+    documentId,
+    includeTabsContent: true,
+    fields: 'tabs(tabProperties(tabId,title),childTabs(tabProperties(tabId,title)))',
+  });
+
+  const tabs = res.data.tabs;
+  if (!tabs || tabs.length === 0) {
+    if (requestedTabId) {
+      throw new UserError(
+        `Document ${documentId} has no tabs, but tabId="${requestedTabId}" was supplied.`
+      );
+    }
+    return { tabId: undefined, isTabbed: false, firstTabId: undefined };
+  }
+
+  const allTabIds: string[] = [];
+  const collectIds = (ts: docs_v1.Schema$Tab[]): void => {
+    for (const t of ts) {
+      const id = t.tabProperties?.tabId;
+      if (id) allTabIds.push(id);
+      if (t.childTabs && t.childTabs.length > 0) collectIds(t.childTabs);
+    }
+  };
+  collectIds(tabs);
+
+  const firstTabId = allTabIds[0];
+
+  if (requestedTabId) {
+    if (!allTabIds.includes(requestedTabId)) {
+      throw new UserError(
+        `Tab "${requestedTabId}" not found in document ${documentId}. ` +
+          `Available tabs: ${allTabIds.map((id) => `"${id}"`).join(', ')}.`
+      );
+    }
+    return { tabId: requestedTabId, isTabbed: true, firstTabId };
+  }
+
+  return { tabId: firstTabId, isTabbed: true, firstTabId };
+}

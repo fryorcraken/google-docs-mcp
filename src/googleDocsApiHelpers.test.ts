@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { findTextRange, getTableCellRange, getParagraphRange } from './googleDocsApiHelpers.js';
+import {
+  findTextRange,
+  getTableCellRange,
+  getParagraphRange,
+  resolveTab,
+} from './googleDocsApiHelpers.js';
 
 describe('Text Range Finding', () => {
   describe('findTextRange', () => {
@@ -574,6 +579,92 @@ describe('Table Cell Range Finding', () => {
       const result = await getTableCellRange(mockDocs as any, 'doc123', 14, 0, 0);
       // Should span from first paragraph start to last paragraph end - 1
       expect(result).toEqual({ startIndex: 16, endIndex: 35 });
+    });
+  });
+});
+
+describe('resolveTab', () => {
+  const makeMockDocs = (tabsResponse: unknown) => ({
+    documents: {
+      get: vi.fn(async () => ({ data: tabsResponse })),
+    },
+  });
+
+  it('returns isTabbed=false for documents without tabs', async () => {
+    const mockDocs = makeMockDocs({});
+    const result = await resolveTab(mockDocs as any, 'doc1');
+    expect(result).toEqual({ tabId: undefined, isTabbed: false, firstTabId: undefined });
+  });
+
+  it('returns isTabbed=false when tabs array is empty', async () => {
+    const mockDocs = makeMockDocs({ tabs: [] });
+    const result = await resolveTab(mockDocs as any, 'doc1');
+    expect(result.isTabbed).toBe(false);
+    expect(result.tabId).toBeUndefined();
+  });
+
+  it('defaults to first tab when requestedTabId is undefined on a tabbed doc', async () => {
+    const mockDocs = makeMockDocs({
+      tabs: [
+        { tabProperties: { tabId: 't.first', title: 'First' } },
+        { tabProperties: { tabId: 't.second', title: 'Second' } },
+      ],
+    });
+    const result = await resolveTab(mockDocs as any, 'doc1');
+    expect(result).toEqual({ tabId: 't.first', isTabbed: true, firstTabId: 't.first' });
+  });
+
+  it('returns the requested tab when it exists', async () => {
+    const mockDocs = makeMockDocs({
+      tabs: [
+        { tabProperties: { tabId: 't.first' } },
+        { tabProperties: { tabId: 't.target' } },
+      ],
+    });
+    const result = await resolveTab(mockDocs as any, 'doc1', 't.target');
+    expect(result.tabId).toBe('t.target');
+    expect(result.isTabbed).toBe(true);
+  });
+
+  it('finds tabs nested under childTabs', async () => {
+    const mockDocs = makeMockDocs({
+      tabs: [
+        {
+          tabProperties: { tabId: 't.parent' },
+          childTabs: [{ tabProperties: { tabId: 't.child' } }],
+        },
+      ],
+    });
+    const result = await resolveTab(mockDocs as any, 'doc1', 't.child');
+    expect(result.tabId).toBe('t.child');
+  });
+
+  it('throws UserError listing available tabs when requested tab is missing', async () => {
+    const mockDocs = makeMockDocs({
+      tabs: [
+        { tabProperties: { tabId: 't.first' } },
+        { tabProperties: { tabId: 't.second' } },
+      ],
+    });
+    await expect(resolveTab(mockDocs as any, 'doc1', 't.nope')).rejects.toThrow(
+      /Tab "t.nope" not found.*"t.first".*"t.second"/
+    );
+  });
+
+  it('throws UserError when tabId is supplied for a non-tabbed document', async () => {
+    const mockDocs = makeMockDocs({});
+    await expect(resolveTab(mockDocs as any, 'doc1', 't.anything')).rejects.toThrow(
+      /has no tabs.*tabId="t.anything"/
+    );
+  });
+
+  it('uses includeTabsContent=true and a minimal field mask', async () => {
+    const mockDocs = makeMockDocs({});
+    await resolveTab(mockDocs as any, 'doc1');
+    expect(mockDocs.documents.get).toHaveBeenCalledWith({
+      documentId: 'doc1',
+      includeTabsContent: true,
+      fields: 'tabs(tabProperties(tabId,title),childTabs(tabProperties(tabId,title)))',
     });
   });
 });

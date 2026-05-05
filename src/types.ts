@@ -33,6 +33,28 @@ export const DocumentIdParameter = z.object({
     .describe('The document ID — the long string between /d/ and /edit in a Google Docs URL.'),
 });
 
+/**
+ * Optional `tabId` schema fragment shared by every tab-aware tool.
+ *
+ * For Google Docs that have multiple tabs (introduced 2024), most fields
+ * live under `documentTab` rather than the legacy top-level `body`. Tools
+ * that omit this and read `body` directly will fail or return empty content
+ * on tabbed documents.
+ *
+ * Tools should compose this into their parameters and pass `tabId` to
+ * `resolveTab()` from googleDocsApiHelpers.ts to get a consistent answer.
+ */
+export const OptionalTabIdParameter = z.object({
+  tabId: z
+    .string()
+    .optional()
+    .describe(
+      "Optional: The ID of the tab to operate on (format 't.xxxxxx'). " +
+        'If omitted on a tabbed document, defaults to the first tab. ' +
+        'Ignored on documents without tabs. Use listDocumentTabs to find tab IDs.'
+    ),
+});
+
 export const RangeParameters = z
   .object({
     startIndex: z
