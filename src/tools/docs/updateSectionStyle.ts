@@ -154,22 +154,7 @@ export function register(server: FastMCP) {
         `Updating section style in doc ${args.documentId} for range ${args.startIndex}-${args.endIndex}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
         const built = buildUpdateSectionStyleRequest({
           startIndex: args.startIndex,
@@ -181,7 +166,7 @@ export function register(server: FastMCP) {
           marginLeft: args.marginLeft,
           marginRight: args.marginRight,
           pageNumberStart: args.pageNumberStart,
-          tabId: args.tabId,
+          tabId: tab.tabId,
         });
 
         if (!built) {
@@ -191,7 +176,7 @@ export function register(server: FastMCP) {
         }
 
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [built.request]);
-        return `Successfully updated section style (${built.fields.join(', ')}) for range ${args.startIndex}-${args.endIndex}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully updated section style (${built.fields.join(', ')}) for range ${args.startIndex}-${args.endIndex}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(
           `Error updating section style in doc ${args.documentId}: ${error.message || error}`

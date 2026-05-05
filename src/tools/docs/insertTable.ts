@@ -33,23 +33,7 @@ export function register(server: FastMCP) {
         `Inserting ${args.rows}x${args.columns} table in doc ${args.documentId} at index ${args.index}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        // If tabId is specified, verify the tab exists
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab(body(content(endIndex))))',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
         await GDocsHelpers.createTable(
           docs,
@@ -57,9 +41,9 @@ export function register(server: FastMCP) {
           args.rows,
           args.columns,
           args.index,
-          args.tabId
+          tab.tabId
         );
-        return `Successfully inserted a ${args.rows}x${args.columns} table at index ${args.index}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully inserted a ${args.rows}x${args.columns} table at index ${args.index}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(`Error inserting table in doc ${args.documentId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;

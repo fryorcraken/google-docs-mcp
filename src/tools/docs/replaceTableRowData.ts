@@ -3,6 +3,7 @@ import { UserError } from 'fastmcp';
 import { z } from 'zod';
 import { getDocsClient } from '../../clients.js';
 import { DocumentIdParameter } from '../../types.js';
+import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
 import { getTableById } from './structureHelpers.js';
 import { replaceTableRowData as replaceTableRowDataInternal } from './tableRowDataHelpers.js';
 
@@ -42,7 +43,10 @@ export function register(server: FastMCP) {
             'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
         });
 
-        const table = getTableById(res.data, args.tableId, args.tabId);
+        // Resolve the tab against the doc we already fetched (no extra RTT).
+        const tab = GDocsHelpers.resolveTabFromDocument(res.data, args.documentId, args.tabId);
+
+        const table = getTableById(res.data, args.tableId, tab.tabId);
         if (!table) {
           throw new UserError(`Table "${args.tableId}" not found in document.`);
         }
@@ -53,7 +57,7 @@ export function register(server: FastMCP) {
           table,
           args.rowIndex,
           args.values,
-          args.tabId
+          tab.tabId
         );
 
         return `Successfully replaced row ${args.rowIndex} in table ${args.tableId}.`;

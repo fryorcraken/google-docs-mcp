@@ -121,23 +121,8 @@ export function register(server: FastMCP) {
       );
 
       try {
-        // Verify tab exists if specified
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
+        const effectiveTabId = tab.tabId;
 
         // Resolve target to numeric indices
         let startIndex: number;
@@ -152,11 +137,11 @@ export function register(server: FastMCP) {
             args.documentId,
             args.target.textToFind,
             args.target.matchInstance,
-            args.tabId
+            effectiveTabId
           );
           if (!range) {
             throw new UserError(
-              `Could not find instance ${args.target.matchInstance ?? 1} of text "${args.target.textToFind}"${args.tabId ? ` in tab ${args.tabId}` : ''}.`
+              `Could not find instance ${args.target.matchInstance ?? 1} of text "${args.target.textToFind}"${effectiveTabId ? ` in tab ${effectiveTabId}` : ''}.`
             );
           }
           startIndex = range.startIndex;
@@ -175,7 +160,7 @@ export function register(server: FastMCP) {
           endIndex,
           text: args.text,
           style: args.style,
-          tabId: args.tabId,
+          tabId: effectiveTabId,
         });
 
         if (requests.length === 0) {
@@ -190,7 +175,7 @@ export function register(server: FastMCP) {
         else if (args.text !== undefined) actions.push('inserted text');
         if (args.style) actions.push('applied formatting');
 
-        return `Successfully ${actions.join(' and ')} at range ${startIndex}-${endIndex ?? startIndex + (args.text?.length ?? 0)}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully ${actions.join(' and ')} at range ${startIndex}-${endIndex ?? startIndex + (args.text?.length ?? 0)}${effectiveTabId ? ` in tab ${effectiveTabId}` : ''}.`;
       } catch (error: any) {
         log.error(`Error in modifyText for doc ${args.documentId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;

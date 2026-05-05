@@ -140,29 +140,13 @@ export function register(server: FastMCP) {
       );
 
       try {
-        // Validate tab if specified (same pattern as insertTable.ts)
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
         const requests = buildInsertTableWithDataRequests(
           args.data,
           args.index,
           args.hasHeaderRow ?? false,
-          args.tabId
+          tab.tabId
         );
 
         const metadata = await GDocsHelpers.executeBatchUpdateWithSplitting(
@@ -174,7 +158,7 @@ export function register(server: FastMCP) {
 
         return (
           `Successfully inserted a ${numRows}x${numCols} table with data at index ${args.index}` +
-          `${args.tabId ? ` in tab ${args.tabId}` : ''}. ` +
+          `${tab.tabId ? ` in tab ${tab.tabId}` : ''}. ` +
           `${args.hasHeaderRow ? 'Header row bolded. ' : ''}` +
           `(${metadata.totalRequests} requests in ${metadata.totalApiCalls} API calls, ${metadata.totalElapsedMs}ms)`
         );

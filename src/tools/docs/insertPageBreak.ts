@@ -31,34 +31,18 @@ export function register(server: FastMCP) {
         `Inserting page break in doc ${args.documentId} at index ${args.index}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        // If tabId is specified, verify the tab exists
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab(body(content(endIndex))))',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
-        const location: any = { index: args.index };
-        if (args.tabId) {
-          location.tabId = args.tabId;
+        const location: docs_v1.Schema$Location = { index: args.index };
+        if (tab.tabId) {
+          location.tabId = tab.tabId;
         }
 
         const request: docs_v1.Schema$Request = {
           insertPageBreak: { location },
         };
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [request]);
-        return `Successfully inserted page break at index ${args.index}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully inserted page break at index ${args.index}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(
           `Error inserting page break in doc ${args.documentId}: ${error.message || error}`
