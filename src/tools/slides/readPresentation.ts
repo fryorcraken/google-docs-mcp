@@ -3,6 +3,7 @@ import { UserError } from 'fastmcp';
 import { z } from 'zod';
 import { slides_v1 } from 'googleapis';
 import { getSlidesClient } from '../../clients.js';
+import { translateSlidesError } from './errors.js';
 
 const PresentationIdParameter = z.object({
   presentationId: z
@@ -77,10 +78,8 @@ export function register(server: FastMCP) {
       } catch (error: any) {
         log.error(`Error reading presentation ${args.presentationId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;
-        if (error.code === 404)
-          throw new UserError(`Presentation not found (ID: ${args.presentationId}).`);
-        if (error.code === 403)
-          throw new UserError(`Permission denied for presentation (ID: ${args.presentationId}).`);
+        const translated = translateSlidesError(error, 'read presentation');
+        if (translated) throw translated;
         throw new UserError(`Failed to read presentation: ${error.message || 'Unknown error'}`);
       }
     },
@@ -88,8 +87,15 @@ export function register(server: FastMCP) {
 }
 
 /**
- * Extracts visible text from a slide by walking pageElements and pulling
- * textElements out of any shape with a text body. Skips images, lines, etc.
+ * Extracts visible text from a slide by walking `pageElements` and pulling
+ * `textElements` out of any shape with a text body.
+ *
+ * Known gaps (not bugs — out of scope for the text dump):
+ * - Images, lines, video embeds, charts, and other non-text page elements
+ * - Speaker notes (live under `slide.notesPage`, not `pageElements`)
+ * - Master/layout-only content (defaults inherited from layouts)
+ *
+ * Use `format: 'json'` if you need any of the above.
  */
 function extractSlideText(slide: slides_v1.Schema$Page): string {
   const elements = slide.pageElements ?? [];

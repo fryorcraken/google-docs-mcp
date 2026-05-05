@@ -99,6 +99,7 @@ export async function initializeGoogleClient() {
     googleScript,
     googleGmail,
     googleCalendar,
+    googleSlides,
   };
 }
 

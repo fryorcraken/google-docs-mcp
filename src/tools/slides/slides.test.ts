@@ -36,23 +36,39 @@ describe('createPresentation', () => {
     expect(create).toHaveBeenCalledWith({ requestBody: { title: 'My Deck' } });
   });
 
-  it('throws clear UserError when API returns no presentationId', async () => {
-    const create = vi.fn().mockResolvedValue({ data: {} });
-    mockGetSlidesClient.mockResolvedValue({ presentations: { create } } as any);
-
-    const execute = captureExecute(registerCreate);
-    await expect(execute({ title: 'Empty' }, { log: mockLog })).rejects.toThrow(
-      /no presentationId/
-    );
-  });
-
-  it('translates 403 to a scope-actionable message', async () => {
+  it('translates a generic 403 to a scope-actionable message', async () => {
     const create = vi.fn().mockRejectedValue({ code: 403, message: 'forbidden' });
     mockGetSlidesClient.mockResolvedValue({ presentations: { create } } as any);
 
     const execute = captureExecute(registerCreate);
     await expect(execute({ title: 'X' }, { log: mockLog })).rejects.toThrow(
-      /Slides API.*presentations scope/
+      /Permission denied.*presentations scope/
+    );
+  });
+
+  it('translates accessNotConfigured 403 to "enable the Slides API" message', async () => {
+    const create = vi.fn().mockRejectedValue({
+      code: 403,
+      message: 'Google Slides API has not been used in project 123 before...',
+      errors: [{ reason: 'accessNotConfigured' }],
+    });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { create } } as any);
+
+    const execute = captureExecute(registerCreate);
+    await expect(execute({ title: 'X' }, { log: mockLog })).rejects.toThrow(
+      /Slides API is not enabled.*console\.cloud\.google\.com/
+    );
+  });
+
+  it('does NOT wrap missing-presentationId in UserError (treated as invariant bug)', async () => {
+    const create = vi.fn().mockResolvedValue({ data: {} });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { create } } as any);
+
+    const execute = captureExecute(registerCreate);
+    // Should throw a plain Error, not UserError — the API contract guarantees
+    // presentationId on 200, so this is a server-side invariant.
+    await expect(execute({ title: 'Empty' }, { log: mockLog })).rejects.toThrow(
+      /200 with no presentationId/
     );
   });
 });
@@ -125,6 +141,16 @@ describe('readPresentation', () => {
       execute({ presentationId: 'bogus', format: 'text' }, { log: mockLog })
     ).rejects.toThrow(/Presentation not found/);
   });
+
+  it('translates 403 to permission-denied message', async () => {
+    const get = vi.fn().mockRejectedValue({ code: 403, message: 'forbidden' });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
+
+    const execute = captureExecute(registerRead);
+    await expect(
+      execute({ presentationId: 'p1', format: 'text' }, { log: mockLog })
+    ).rejects.toThrow(/Permission denied/);
+  });
 });
 
 describe('listSlides', () => {
@@ -176,6 +202,49 @@ describe('listSlides', () => {
     const parsed = JSON.parse(result);
 
     expect(parsed.slides[0].preview).toBeNull();
+  });
+
+  it('prefers a TITLE placeholder over earlier non-title text for preview', async () => {
+    // Slide where the body text comes first in pageElements, then the title.
+    // Without TITLE-priority routing, preview would be body text — wrong for
+    // a deck navigation preview.
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        slides: [
+          {
+            objectId: 's1',
+            pageElements: [
+              {
+                shape: { text: { textElements: [{ textRun: { content: 'Body bullet text' } }] } },
+              },
+              {
+                shape: {
+                  placeholder: { type: 'TITLE' },
+                  text: { textElements: [{ textRun: { content: 'Real Slide Title' } }] },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
+
+    const execute = captureExecute(registerList);
+    const result = await execute({ presentationId: 'p1' }, { log: mockLog });
+    const parsed = JSON.parse(result);
+
+    expect(parsed.slides[0].preview).toBe('Real Slide Title');
+  });
+
+  it('translates 403 to permission-denied message', async () => {
+    const get = vi.fn().mockRejectedValue({ code: 403, message: 'forbidden' });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
+
+    const execute = captureExecute(registerList);
+    await expect(execute({ presentationId: 'p1' }, { log: mockLog })).rejects.toThrow(
+      /Permission denied/
+    );
   });
 
   it('truncates long previews to 80 chars', async () => {

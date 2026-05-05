@@ -1,7 +1,33 @@
 import type { FastMCP } from 'fastmcp';
 import { UserError } from 'fastmcp';
 import { z } from 'zod';
+import { slides_v1 } from 'googleapis';
 import { getSlidesClient } from '../../clients.js';
+import { translateSlidesError } from './errors.js';
+
+/**
+ * Returns a short preview string for a slide. Prefers a TITLE/CENTERED_TITLE
+ * placeholder when present (typical "deck navigation" preview), falling back
+ * to the first non-empty text element. Returns undefined if neither yields
+ * any text.
+ */
+function pickSlidePreview(slide: slides_v1.Schema$Page): string | undefined {
+  const elements = slide.pageElements ?? [];
+  const textOf = (el: slides_v1.Schema$PageElement): string =>
+    (el.shape?.text?.textElements ?? [])
+      .map((te) => te.textRun?.content ?? '')
+      .join('')
+      .trim();
+
+  const titleEl = elements.find((el) => {
+    const t = el.shape?.placeholder?.type;
+    return t === 'TITLE' || t === 'CENTERED_TITLE';
+  });
+  const titleText = titleEl ? textOf(titleEl) : '';
+  const candidate = titleText || elements.map(textOf).find((t) => t) || '';
+  if (!candidate) return undefined;
+  return candidate.length > 80 ? candidate.slice(0, 77) + '...' : candidate;
+}
 
 export function register(server: FastMCP) {
   server.addTool({
@@ -20,28 +46,12 @@ export function register(server: FastMCP) {
       try {
         const res = await slides.presentations.get({ presentationId: args.presentationId });
         const slideList = res.data.slides ?? [];
-        const items = slideList.map((slide, index) => {
-          const elementCount = slide.pageElements?.length ?? 0;
-          // First non-empty text element makes a useful "preview" without reading
-          // the whole slide.
-          let preview: string | undefined;
-          for (const el of slide.pageElements ?? []) {
-            const text = (el.shape?.text?.textElements ?? [])
-              .map((te) => te.textRun?.content ?? '')
-              .join('')
-              .trim();
-            if (text) {
-              preview = text.length > 80 ? text.slice(0, 77) + '...' : text;
-              break;
-            }
-          }
-          return {
-            index: index + 1,
-            objectId: slide.objectId,
-            elementCount,
-            preview: preview ?? null,
-          };
-        });
+        const items = slideList.map((slide, index) => ({
+          index: index + 1,
+          objectId: slide.objectId,
+          elementCount: slide.pageElements?.length ?? 0,
+          preview: pickSlidePreview(slide) ?? null,
+        }));
         return JSON.stringify(
           {
             presentationId: args.presentationId,
@@ -55,10 +65,8 @@ export function register(server: FastMCP) {
       } catch (error: any) {
         log.error(`Error listing slides for ${args.presentationId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;
-        if (error.code === 404)
-          throw new UserError(`Presentation not found (ID: ${args.presentationId}).`);
-        if (error.code === 403)
-          throw new UserError(`Permission denied for presentation (ID: ${args.presentationId}).`);
+        const translated = translateSlidesError(error, 'list slides');
+        if (translated) throw translated;
         throw new UserError(`Failed to list slides: ${error.message || 'Unknown error'}`);
       }
     },
