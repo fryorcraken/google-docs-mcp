@@ -1,4 +1,5 @@
 import { docs_v1 } from 'googleapis';
+import { UserError } from 'fastmcp';
 import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
 
 export interface ExtractedTableCell {
@@ -77,12 +78,20 @@ function getContentSource(
 ): docs_v1.Schema$StructuralElement[] {
   if (tabId) {
     const targetTab = GDocsHelpers.findTabById(doc, tabId);
-    if (!targetTab?.documentTab?.body?.content) {
+    if (!targetTab) {
+      throw new UserError(
+        `Tab "${tabId}" not found in document. Use listTabs to see available tab IDs.`
+      );
+    }
+    if (!targetTab.documentTab?.body?.content) {
       return [];
     }
     return targetTab.documentTab.body.content;
   }
 
+  // No tabId given. Prefer legacy body for non-tabbed docs; fall back to the
+  // first tab's body for tabbed docs (so callers don't have to know upfront
+  // whether a doc is tabbed).
   if (doc.body?.content) {
     return doc.body.content;
   }

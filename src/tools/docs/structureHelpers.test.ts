@@ -166,4 +166,63 @@ describe('structureHelpers', () => {
       },
     ]);
   });
+
+  it('throws UserError when an unknown tabId is supplied', () => {
+    // Regression: previously getContentSource silently returned [] when the
+    // tab lookup failed, so callers got "no tables found" instead of a
+    // clear error pointing at the bad tabId.
+    const tabbedDoc = {
+      tabs: [
+        {
+          tabProperties: { tabId: 't.real' },
+          documentTab: { body: { content: [] } },
+        },
+      ],
+    } as any;
+
+    expect(() => extractDocumentTables(tabbedDoc, 't.bogus')).toThrow(/Tab "t.bogus" not found/);
+  });
+
+  it('falls back to first tab when no tabId is supplied on a tabbed doc', () => {
+    const tabbedDoc = {
+      tabs: [
+        {
+          tabProperties: { tabId: 't.first' },
+          documentTab: {
+            body: {
+              content: [
+                {
+                  startIndex: 1,
+                  endIndex: 50,
+                  table: {
+                    tableRows: [
+                      {
+                        tableCells: [
+                          {
+                            startIndex: 5,
+                            endIndex: 20,
+                            content: [
+                              {
+                                paragraph: {
+                                  elements: [{ textRun: { content: 'cell from first tab\n' } }],
+                                },
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const tables = extractDocumentTables(tabbedDoc);
+    expect(tables).toHaveLength(1);
+    expect(tables[0].cells[0].text).toBe('cell from first tab');
+  });
 });

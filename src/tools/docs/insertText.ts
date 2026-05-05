@@ -33,34 +33,27 @@ export function register(server: FastMCP) {
         `Inserting text in doc ${args.documentId} at index ${args.index}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        if (args.tabId) {
-          // For tab-specific inserts, we need to verify the tab exists first
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab(body(content(endIndex))))',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
+        // Auto-detect tabbed docs even when caller doesn't pass tabId. This
+        // is the issue #1 bug class: a user inserting into a tabbed doc
+        // without knowing it was tabbed previously hit "appears empty" or
+        // the comment-field validation error from the Docs API.
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
-          // Insert with tabId
-          const location: any = { index: args.index, tabId: args.tabId };
+        if (tab.isTabbed) {
+          const location: docs_v1.Schema$Location = {
+            index: args.index,
+            tabId: tab.tabId!,
+          };
           const request: docs_v1.Schema$Request = {
             insertText: { location, text: args.text },
           };
           await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [request]);
-        } else {
-          // Use existing helper for backward compatibility
-          await GDocsHelpers.insertText(docs, args.documentId, args.text, args.index);
+          return `Successfully inserted text at index ${args.index} in tab ${tab.tabId}.`;
         }
-        return `Successfully inserted text at index ${args.index}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+
+        // Non-tabbed doc — use the legacy path.
+        await GDocsHelpers.insertText(docs, args.documentId, args.text, args.index);
+        return `Successfully inserted text at index ${args.index}.`;
       } catch (error: any) {
         log.error(`Error inserting text in doc ${args.documentId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;
