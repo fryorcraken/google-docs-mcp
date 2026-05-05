@@ -45,37 +45,21 @@ export function register(server: FastMCP) {
         throw new UserError('End index must be greater than start index for deletion.');
       }
       try {
-        // If tabId is specified, verify the tab exists
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab(body(content(endIndex))))',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
-        const range: any = {
+        const range: docs_v1.Schema$Range = {
           startIndex: args.startIndex,
           endIndex: args.endIndex,
         };
-        if (args.tabId) {
-          range.tabId = args.tabId;
+        if (tab.tabId) {
+          range.tabId = tab.tabId;
         }
 
         const request: docs_v1.Schema$Request = {
           deleteContentRange: { range },
         };
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [request]);
-        return `Successfully deleted content in range ${args.startIndex}-${args.endIndex}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully deleted content in range ${args.startIndex}-${args.endIndex}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(`Error deleting range in doc ${args.documentId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;

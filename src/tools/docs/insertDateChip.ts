@@ -64,27 +64,14 @@ export function register(server: FastMCP) {
       );
 
       try {
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
-        const location: Record<string, unknown> = { index: args.index };
-        if (args.tabId) location.tabId = args.tabId;
+        const location: docs_v1.Schema$Location = { index: args.index };
+        if (tab.tabId) location.tabId = tab.tabId;
 
         const request: docs_v1.Schema$Request = {
           insertDate: {
-            location: location as docs_v1.Schema$Location,
+            location,
             dateElementProperties: {
               timestamp: toGoogleTimestamp(args.date),
               timeZoneId: args.timeZoneId,
@@ -96,7 +83,7 @@ export function register(server: FastMCP) {
         };
 
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [request]);
-        return `Successfully inserted a date chip at index ${args.index}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully inserted a date chip at index ${args.index}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(
           `Error inserting date chip into doc ${args.documentId}: ${error.message || error}`

@@ -55,30 +55,15 @@ export function register(server: FastMCP) {
         `Inserting ${args.sectionType} section break in doc ${args.documentId} at index ${args.index}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
-        }
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
         const request = buildInsertSectionBreakRequest({
           index: args.index,
           sectionType: args.sectionType,
-          tabId: args.tabId,
+          tabId: tab.tabId,
         });
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [request]);
-        return `Successfully inserted ${args.sectionType} section break at index ${args.index}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully inserted ${args.sectionType} section break at index ${args.index}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(
           `Error inserting section break in doc ${args.documentId}: ${error.message || error}`

@@ -84,25 +84,15 @@ export function register(server: FastMCP) {
           );
         }
 
-        if (args.targetTabId) {
-          const targetInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(targetInfo.data, args.targetTabId);
-          if (!targetTab)
-            throw new UserError(`Target tab "${args.targetTabId}" not found in document.`);
-          if (!targetTab.documentTab) {
-            throw new UserError(`Target tab "${args.targetTabId}" does not have document content.`);
-          }
-        }
+        // Resolve the target tab (auto-detects tabbed docs, errors on bad tabId).
+        const targetTab = await GDocsHelpers.resolveTab(docs, args.documentId, args.targetTabId);
+        const effectiveTargetTabId = targetTab.tabId;
 
         const insertRequests = buildInsertTableWithDataRequests(
           snapshot.data,
           args.index,
           false,
-          args.targetTabId
+          effectiveTargetTabId
         );
         await GDocsHelpers.executeBatchUpdateWithSplitting(
           docs,
@@ -118,7 +108,7 @@ export function register(server: FastMCP) {
             'body(content(startIndex,endIndex,table(rows,columns,tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(rows,columns,tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
         });
 
-        const targetTable = extractDocumentTables(targetRes.data, args.targetTabId)
+        const targetTable = extractDocumentTables(targetRes.data, effectiveTargetTabId)
           .filter(
             (table) =>
               table.startIndex != null &&
@@ -146,7 +136,7 @@ export function register(server: FastMCP) {
                 targetTable.startIndex,
                 [columnStyle.columnIndex],
                 columnStyle.widthPt,
-                args.targetTabId
+                effectiveTargetTabId
               )
             );
           }
@@ -159,7 +149,7 @@ export function register(server: FastMCP) {
               [rowStyle.rowIndex],
               rowStyle.minRowHeightPt,
               rowStyle.preventOverflow,
-              args.targetTabId
+              effectiveTargetTabId
             );
             if (request) styleRequests.push(request);
           }
@@ -170,7 +160,7 @@ export function register(server: FastMCP) {
             GDocsHelpers.buildPinTableHeaderRowsRequest(
               targetTable.startIndex,
               snapshot.pinnedHeaderRowsCount,
-              args.targetTabId
+              effectiveTargetTabId
             )
           );
         }
@@ -193,7 +183,7 @@ export function register(server: FastMCP) {
                 borderLeft: cellStyle.borderLeft,
                 borderRight: cellStyle.borderRight,
               },
-              args.targetTabId
+              effectiveTargetTabId
             );
             if (requestInfo) styleRequests.push(requestInfo.request);
           }
@@ -215,7 +205,7 @@ export function register(server: FastMCP) {
               targetCell.contentStartIndex,
               targetCell.contentStartIndex + targetText.length,
               { bold: true },
-              args.targetTabId
+              effectiveTargetTabId
             );
             if (requestInfo) styleRequests.push(requestInfo.request);
           }

@@ -154,23 +154,29 @@ export function register(server: FastMCP) {
         `Updating section style in doc ${args.documentId} for range ${args.startIndex}-${args.endIndex}${args.tabId ? ` (tab: ${args.tabId})` : ''}`
       );
       try {
-        if (args.tabId) {
-          const docInfo = await docs.documents.get({
-            documentId: args.documentId,
-            includeTabsContent: true,
-            fields: 'tabs(tabProperties,documentTab)',
-          });
-          const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
-            throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
-            );
-          }
+        // Build the request first (cheap, in-process) so we can fail fast
+        // when no options were supplied without paying for the resolveTab RTT.
+        // We pass undefined tabId here and patch it in below if we proceed.
+        const builtNoTab = buildUpdateSectionStyleRequest({
+          startIndex: args.startIndex,
+          endIndex: args.endIndex,
+          flipPageOrientation: args.flipPageOrientation,
+          sectionType: args.sectionType,
+          marginTop: args.marginTop,
+          marginBottom: args.marginBottom,
+          marginLeft: args.marginLeft,
+          marginRight: args.marginRight,
+          pageNumberStart: args.pageNumberStart,
+          tabId: undefined,
+        });
+
+        if (!builtNoTab) {
+          throw new UserError(
+            'No section style options were provided. Set at least one of: flipPageOrientation, sectionType, marginTop, marginBottom, marginLeft, marginRight, pageNumberStart.'
+          );
         }
 
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
         const built = buildUpdateSectionStyleRequest({
           startIndex: args.startIndex,
           endIndex: args.endIndex,
@@ -181,17 +187,11 @@ export function register(server: FastMCP) {
           marginLeft: args.marginLeft,
           marginRight: args.marginRight,
           pageNumberStart: args.pageNumberStart,
-          tabId: args.tabId,
-        });
-
-        if (!built) {
-          throw new UserError(
-            'No section style options were provided. Set at least one of: flipPageOrientation, sectionType, marginTop, marginBottom, marginLeft, marginRight, pageNumberStart.'
-          );
-        }
+          tabId: tab.tabId,
+        })!;
 
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [built.request]);
-        return `Successfully updated section style (${built.fields.join(', ')}) for range ${args.startIndex}-${args.endIndex}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully updated section style (${built.fields.join(', ')}) for range ${args.startIndex}-${args.endIndex}${tab.tabId ? ` in tab ${tab.tabId}` : ''}.`;
       } catch (error: any) {
         log.error(
           `Error updating section style in doc ${args.documentId}: ${error.message || error}`
