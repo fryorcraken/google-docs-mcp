@@ -26,7 +26,7 @@ Connect Claude Desktop, Cursor, or any MCP client to your Google Docs, Google Sh
 ```bash
 GOOGLE_CLIENT_ID="your-client-id" \
 GOOGLE_CLIENT_SECRET="your-client-secret" \
-npx -y @a-bonus/google-docs-mcp auth
+npx -y @fryorcraken/google-docs-mcp auth
 ```
 
 This opens your browser for Google authorization. After you approve, the refresh token is saved to `~/.config/google-docs-mcp/token.json`.
@@ -40,7 +40,7 @@ This opens your browser for Google authorization. After you approve, the refresh
   "mcpServers": {
     "google-docs": {
       "command": "npx",
-      "args": ["-y", "@a-bonus/google-docs-mcp"],
+      "args": ["-y", "@fryorcraken/google-docs-mcp"],
       "env": {
         "GOOGLE_CLIENT_ID": "your-client-id",
         "GOOGLE_CLIENT_SECRET": "your-client-secret"
@@ -299,7 +299,7 @@ The repository includes an opt-in live integration test for `cloneTable` against
 Requirements:
 
 - valid `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
-- an authorized token already stored via `npx -y @a-bonus/google-docs-mcp auth`
+- an authorized token already stored via `npx -y @fryorcraken/google-docs-mcp auth`
 
 Run it with:
 
@@ -411,7 +411,7 @@ For Google Workspace with domain-wide delegation:
   "mcpServers": {
     "google-docs": {
       "command": "npx",
-      "args": ["-y", "@a-bonus/google-docs-mcp"],
+      "args": ["-y", "@fryorcraken/google-docs-mcp"],
       "env": {
         "SERVICE_ACCOUNT_PATH": "/path/to/service-account-key.json",
         "GOOGLE_IMPERSONATE_USER": "user@yourdomain.com"
@@ -438,7 +438,7 @@ Set `GOOGLE_MCP_PROFILE` to store tokens in a profile-specific subdirectory. Thi
   "mcpServers": {
     "google-docs": {
       "command": "npx",
-      "args": ["-y", "@a-bonus/google-docs-mcp"],
+      "args": ["-y", "@fryorcraken/google-docs-mcp"],
       "env": {
         "GOOGLE_CLIENT_ID": "...",
         "GOOGLE_CLIENT_SECRET": "...",
@@ -479,11 +479,11 @@ Without `GOOGLE_MCP_PROFILE`, behavior is unchanged.
 
 - **Server won't start:**
   - Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set in the `env` block of your MCP config.
-  - Try running manually: `npx @a-bonus/google-docs-mcp` and check stderr for errors.
+  - Try running manually: `npx @fryorcraken/google-docs-mcp` and check stderr for errors.
 - **Authorization errors:**
   - Ensure Docs, Sheets, Drive, Gmail, and Calendar APIs are enabled in Google Cloud Console.
   - Confirm your email is listed as a Test User on the OAuth consent screen and that all required scopes (Docs, Sheets, Drive, `gmail.modify`, `calendar.events`) are added to the consent screen.
-  - Re-authorize: `npx @a-bonus/google-docs-mcp auth`
+  - Re-authorize: `npx @fryorcraken/google-docs-mcp auth`
   - Delete `~/.config/google-docs-mcp/token.json` and re-authorize if upgrading — Gmail and Calendar scopes were added in later versions, so existing tokens must be refreshed.
   - Remote (Cloud Run) users must sign out and sign back in from their MCP client so Google reissues consent with the new scope list.
 - **Tab errors:**
