@@ -1,0 +1,61 @@
+{
+  "name": "@fryorcraken/google-docs-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "google-docs-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "start": "node ./dist/index.js",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:live:docs": "vitest run src/tools/docs/cloneTable.live.test.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "google-docs",
+    "google-slides",
+    "google-sheets",
+    "google-drive"
+  ],
+  "author": "fryorcraken",
+  "license": "(MIT OR Apache-2.0)",
+  "description": "MCP server for Google Docs, Slides, Sheets, Drive, Gmail, and Calendar (fork of a-bonus/google-docs-mcp)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fryorcraken/google-docs-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fryorcraken/google-docs-mcp/issues"
+  },
+  "homepage": "https://github.com/fryorcraken/google-docs-mcp#readme",
+  "dependencies": {
+    "@google-cloud/firestore": "^8.3.0",
+    "fastmcp": "^3.34.0",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^171.4.0",
+    "markdown-it": "^14.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.14.1",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.18"
+  }
+}

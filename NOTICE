@@ -1,0 +1,18 @@
+google-docs-mcp
+================
+
+This project is a hard fork of:
+
+  https://github.com/a-bonus/google-docs-mcp
+  Original author: Alain Bonus <alain@florafauna.ai>
+  Forked at upstream commit: 36b6ddc
+
+The upstream project is distributed under the MIT License (see LICENSE-MIT).
+
+This fork is dual-licensed under the MIT License (LICENSE-MIT) or the
+Apache License, Version 2.0 (LICENSE-APACHE), at your option. New
+contributions to this fork are made available under the same dual licensing
+terms unless explicitly stated otherwise.
+
+By contributing to this project you agree that your contributions are
+licensed under both LICENSE-MIT and LICENSE-APACHE.
