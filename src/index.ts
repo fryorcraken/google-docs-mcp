@@ -111,6 +111,7 @@ const GOOGLE_API_SCOPES = [
   'email',
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/presentations',
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/gmail.modify',

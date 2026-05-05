@@ -53,6 +53,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/presentations',
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/calendar.events',
@@ -153,6 +154,21 @@ async function loadSavedCredentialsIfExist(): Promise<OAuth2Client | null> {
     const { client_secret, client_id } = await loadClientSecrets();
     const client = new google.auth.OAuth2(client_id, client_secret);
     client.setCredentials(credentials);
+
+    // Surface scope-coverage gaps clearly. When new scopes are added in a
+    // server upgrade, existing tokens won't cover them and API calls will
+    // fail with cryptic 403/invalid_scope errors. We warn at startup so the
+    // user knows to run `auth` again before hitting a broken tool.
+    if (typeof credentials.scope === 'string' && credentials.scope.length > 0) {
+      const tokenScopes = new Set(credentials.scope.split(/\s+/).filter(Boolean));
+      const missing = SCOPES.filter((s) => !tokenScopes.has(s));
+      if (missing.length > 0) {
+        logger.warn(
+          `Saved token is missing required scopes: ${missing.join(', ')}. ` +
+            'Re-run the auth subcommand to upgrade — affected tools will fail until then.'
+        );
+      }
+    }
     return client;
   } catch {
     return null;
@@ -169,6 +185,9 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
       type: 'authorized_user',
       client_id,
       refresh_token: client.credentials.refresh_token,
+      // Store granted scopes so future startups can detect a coverage gap
+      // when SCOPES is extended (see loadSavedCredentialsIfExist).
+      scope: client.credentials.scope ?? SCOPES.join(' '),
     },
     null,
     2
