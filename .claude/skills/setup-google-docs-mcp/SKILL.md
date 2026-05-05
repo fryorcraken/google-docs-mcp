@@ -7,11 +7,7 @@ description: Walk a user through installing the @fryorcraken/google-docs-mcp ser
 
 Walks through the full install: Google Cloud OAuth client → npm install (or local build) → `auth` flow → MCP client registration. Covers stdio mode (single user, local). For remote/Cloud Run deployment see the project's `README.md`.
 
-<!-- TODO: update when GOOGLE_MCP_SCOPES env var lands. The "all 7" framing
-     in the banner below and in Step 1.2 should switch to "all 7 if you
-     don't set GOOGLE_MCP_SCOPES; otherwise just the domains you opt into". -->
-
-> ⚠️ **Scope-permission warning.** The server unconditionally requests OAuth scopes for **all 7** Google APIs it ships tools for: Docs, Drive, Sheets, Slides, Apps Script (`script.external_request`), Gmail (`modify`), and Calendar (`events`). You MUST enable all 7 in your Cloud project, or the OAuth flow will fail with `invalid_scope` from Google. There is no scope-subset option yet (planned).
+> ⚠️ **Scope-permission default.** By default the server requests OAuth scopes for **all 6 domains** (Docs+Apps Script, Drive, Sheets, Slides, Gmail, Calendar = 7 scopes). You can opt into a subset via `GOOGLE_MCP_SCOPES` (see [Limited scopes](#limited-scopes-least-privilege) below) — only the named domains' scopes are requested AND only those tools are registered. If you stick with the default, you MUST enable all 7 APIs in your Cloud project or the OAuth flow will fail with `invalid_scope`.
 >
 > ⚠️ **Don't paste OAuth secrets into LLM chat.** The secret will hit the model provider's logs. Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as env vars in your shell and tell the LLM "I've set them in my shell" rather than pasting the values.
 
@@ -102,6 +98,34 @@ The auth command opens a browser via `open` / `xdg-open`. On a headless server o
   ```
 
 - **Auth on a workstation, copy the token**: run `auth` on a machine with a browser, then `scp ~/.config/google-docs-mcp/token.json` to the headless box.
+
+### Limited scopes (least privilege)
+
+If you only need a subset of Google services — say, just Docs and Drive — set `GOOGLE_MCP_SCOPES` to a comma-separated list of domain names. The auth flow will only request those scopes, AND only those tools will register at startup, so you can't accidentally call a Gmail tool you didn't grant.
+
+Valid domains (case-insensitive): `docs`, `drive`, `sheets`, `slides`, `gmail`, `calendar`.
+
+```bash
+export GOOGLE_CLIENT_ID="..."
+export GOOGLE_CLIENT_SECRET="..."
+export GOOGLE_MCP_SCOPES="docs,drive"
+npx -y @fryorcraken/google-docs-mcp auth      # auth requests only docs+drive scopes
+# Then add to your MCP client with the same env var:
+claude mcp add google-docs --scope user \
+  -e GOOGLE_CLIENT_ID="..." \
+  -e GOOGLE_CLIENT_SECRET="..." \
+  -e GOOGLE_MCP_SCOPES="docs,drive" \
+  -- npx -y @fryorcraken/google-docs-mcp
+```
+
+What this changes:
+
+- **Cloud project**: you only need to enable the APIs for the domains you opt into. Skipping any other API is fine.
+- **OAuth scopes requested**: only the ones for opted-in domains.
+- **Tools registered**: only the ones in opted-in domains. Gmail/Calendar/Slides/Sheets tools simply don't appear in `tools/list` if you didn't include them.
+- **Token re-auth**: if you change `GOOGLE_MCP_SCOPES` later (adding a domain), re-run `auth` — the saved-token-missing-scopes warning will surface at startup.
+
+Note on the Apps Script scope (`script.external_request`): it's bundled under `docs` because the only consumer (Apps Script image insertion in `insertImage`) is a Docs feature. Opt out of `docs` and the Apps Script scope is also dropped.
 
 ### Multi-account (one token per project)
 
