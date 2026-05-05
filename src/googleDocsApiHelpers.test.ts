@@ -617,10 +617,7 @@ describe('resolveTab', () => {
 
   it('returns the requested tab when it exists', async () => {
     const mockDocs = makeMockDocs({
-      tabs: [
-        { tabProperties: { tabId: 't.first' } },
-        { tabProperties: { tabId: 't.target' } },
-      ],
+      tabs: [{ tabProperties: { tabId: 't.first' } }, { tabProperties: { tabId: 't.target' } }],
     });
     const result = await resolveTab(mockDocs as any, 'doc1', 't.target');
     expect(result.tabId).toBe('t.target');
@@ -663,10 +660,7 @@ describe('resolveTab', () => {
 
   it('throws UserError listing available tabs when requested tab is missing', async () => {
     const mockDocs = makeMockDocs({
-      tabs: [
-        { tabProperties: { tabId: 't.first' } },
-        { tabProperties: { tabId: 't.second' } },
-      ],
+      tabs: [{ tabProperties: { tabId: 't.first' } }, { tabProperties: { tabId: 't.second' } }],
     });
     await expect(resolveTab(mockDocs as any, 'doc1', 't.nope')).rejects.toThrow(
       /Tab "t.nope" not found.*"t.first".*"t.second"/

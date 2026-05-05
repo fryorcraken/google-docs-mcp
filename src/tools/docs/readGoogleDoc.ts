@@ -54,11 +54,7 @@ export function register(server: FastMCP) {
           fields,
         });
 
-        const tab = GDocsHelpers.resolveTabFromDocument(
-          res.data,
-          args.documentId,
-          args.tabId
-        );
+        const tab = GDocsHelpers.resolveTabFromDocument(res.data, args.documentId, args.tabId);
         log.info(`Fetched doc: ${args.documentId}${tab.tabId ? ` (tab: ${tab.tabId})` : ''}`);
 
         // For tabbed docs, surface the resolved tab's documentTab fields under

@@ -68,10 +68,7 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
-    const result = await toolExecute(
-      { documentId: 'doc1', format: 'text' },
-      { log: mockLog }
-    );
+    const result = await toolExecute({ documentId: 'doc1', format: 'text' }, { log: mockLog });
 
     expect(result).toContain('first tab content');
     expect(result).not.toContain('second tab content');
@@ -113,17 +110,12 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
   it('reads legacy body for non-tabbed docs (backward compat)', async () => {
     const mockDocs = makeMockDocs({
       body: {
-        content: [
-          { paragraph: { elements: [{ textRun: { content: 'legacy body content' } }] } },
-        ],
+        content: [{ paragraph: { elements: [{ textRun: { content: 'legacy body content' } }] } }],
       },
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
-    const result = await toolExecute(
-      { documentId: 'doc1', format: 'text' },
-      { log: mockLog }
-    );
+    const result = await toolExecute({ documentId: 'doc1', format: 'text' }, { log: mockLog });
 
     expect(result).toContain('legacy body content');
   });
@@ -167,10 +159,7 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
-    const result = await toolExecute(
-      { documentId: 'doc1', format: 'json' },
-      { log: mockLog }
-    );
+    const result = await toolExecute({ documentId: 'doc1', format: 'json' }, { log: mockLog });
 
     const parsed = JSON.parse(result);
     expect(parsed.lists).toBeDefined();
@@ -190,9 +179,7 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
           tabProperties: { tabId: 't.first' },
           documentTab: {
             body: {
-              content: [
-                { paragraph: { elements: [{ textRun: { content: 'item one\n' } }] } },
-              ],
+              content: [{ paragraph: { elements: [{ textRun: { content: 'item one\n' } }] } }],
             },
             lists: {
               'kix.list1': {
@@ -205,10 +192,7 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
-    const result = await toolExecute(
-      { documentId: 'doc1', format: 'markdown' },
-      { log: mockLog }
-    );
+    const result = await toolExecute({ documentId: 'doc1', format: 'markdown' }, { log: mockLog });
 
     expect(result).toContain('item one');
   });
