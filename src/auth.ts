@@ -203,26 +203,23 @@ async function authenticate(): Promise<OAuth2Client> {
   logger.info('Authorize this app by visiting this url:', authorizeUrl);
 
   const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
-  const timeout = setTimeout(() => {
-    server.close();
-  }, AUTH_TIMEOUT_MS);
 
   // Wait for the OAuth callback
   const code = await new Promise<string>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      server.close();
+      reject(
+        new Error(
+          `OAuth callback not received within ${AUTH_TIMEOUT_MS / 1000}s. ` +
+            'Please re-run the auth command and complete the browser authorization.'
+        )
+      );
+    }, AUTH_TIMEOUT_MS);
+
     server.on('request', (req, res) => {
       const url = new URL(req.url!, `http://localhost:${port}`);
-      const authCode = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
 
-      if (error) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Authorization failed</h1><p>You can close this tab.</p>');
-        reject(new Error(`Authorization error: ${error}`));
-        clearTimeout(timeout);
-        server.close();
-        return;
-      }
-
+      // Validate state before any other processing to prevent CSRF.
       const returnedState = url.searchParams.get('state');
       if (returnedState !== state) {
         res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -230,12 +227,24 @@ async function authenticate(): Promise<OAuth2Client> {
         return;
       }
 
+      const authCode = url.searchParams.get('code');
+      const error = url.searchParams.get('error');
+
+      if (error) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h1>Authorization failed</h1><p>You can close this tab.</p>');
+        clearTimeout(timeout);
+        server.close();
+        reject(new Error(`Authorization error: ${error}`));
+        return;
+      }
+
       if (authCode) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end('<h1>Authorization successful!</h1><p>You can close this tab.</p>');
-        resolve(authCode);
         clearTimeout(timeout);
         server.close();
+        resolve(authCode);
       }
     });
   });
