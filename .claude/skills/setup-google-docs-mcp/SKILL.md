@@ -7,6 +7,10 @@ description: Walk a user through installing the @fryorcraken/google-docs-mcp ser
 
 Walks through the full install: Google Cloud OAuth client → npm install (or local build) → `auth` flow → MCP client registration. Covers stdio mode (single user, local). For remote/Cloud Run deployment see the project's `README.md`.
 
+<!-- TODO: update when GOOGLE_MCP_SCOPES env var lands. The "all 7" framing
+     in the banner below and in Step 1.2 should switch to "all 7 if you
+     don't set GOOGLE_MCP_SCOPES; otherwise just the domains you opt into". -->
+
 > ⚠️ **Scope-permission warning.** The server unconditionally requests OAuth scopes for **all 7** Google APIs it ships tools for: Docs, Drive, Sheets, Slides, Apps Script (`script.external_request`), Gmail (`modify`), and Calendar (`events`). You MUST enable all 7 in your Cloud project, or the OAuth flow will fail with `invalid_scope` from Google. There is no scope-subset option yet (planned).
 >
 > ⚠️ **Don't paste OAuth secrets into LLM chat.** The secret will hit the model provider's logs. Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as env vars in your shell and tell the LLM "I've set them in my shell" rather than pasting the values.
@@ -89,13 +93,12 @@ What happens:
 
 The auth command opens a browser via `open` / `xdg-open`. On a headless server or SSH session this fails silently. Two workarounds:
 
-- **Copy the URL to a local browser**: grep stderr for the listening port, copy the printed `https://accounts.google.com/o/oauth2/v2/auth?...` URL into your local browser, complete auth, then SSH-forward the callback port:
+- **Copy the URL to a local browser**: grep stderr for the listening port, copy the printed `https://accounts.google.com/o/oauth2/v2/auth?...` URL into your local browser, complete auth. The OAuth redirect target is `http://localhost:<port>`, which only resolves on the remote box where `auth` is running — so before submitting the consent, set up an SSH tunnel from your laptop:
 
   ```bash
-  # On your laptop, in another terminal:
+  # On your laptop, in another terminal — tunnels your laptop's
+  # localhost:<port> to the listener on the remote box:
   ssh -L <port>:localhost:<port> <remote>
-  # then submit the consent in the browser; the redirect to localhost:<port>
-  # forwards back through the tunnel to the auth process on the remote.
   ```
 
 - **Auth on a workstation, copy the token**: run `auth` on a machine with a browser, then `scp ~/.config/google-docs-mcp/token.json` to the headless box.
@@ -256,7 +259,7 @@ In the MCP client, ask the agent to call `listDriveFiles` (or any harmless read 
 
 **`Saved token is missing required scopes` warning at startup** → you upgraded the server and it added new scopes (most recently `presentations` for Slides support). Re-run the `auth` command to refresh the token.
 
-**`credentials.json` security note** → if you use the legacy `credentials.json` fallback (file in project root, no env vars), that file contains your OAuth secret. Confirm `.gitignore` covers it (the repo's gitignore already does — line 6) before committing.
+**`credentials.json` security note** → if you use the legacy `credentials.json` fallback (file in project root, no env vars), that file contains your OAuth secret. Confirm `.gitignore` covers it (the repo's `.gitignore` already covers `credentials.json`) before committing.
 
 **Server hangs / "appears empty" on a Google Doc with tabs** → fixed in v0.2.0+ (issue #1). Upgrade if on an older fork.
 
