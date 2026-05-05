@@ -35,6 +35,11 @@ Practical guide for picking and calling tools from this MCP server. Assumes the 
 | Calendar events                              | `listEvents`, `createEvent`, `updateEvent`, `quickAddEvent`           |
 | Slides — read/list                           | `readPresentation`, `listSlides`                                      |
 | Slides — create new presentation             | `createPresentation`                                                  |
+| Slides — add/delete/duplicate/move slides    | `addSlide`, `deleteSlide`, `duplicateSlide`, `moveSlide`              |
+| Slides — replace placeholder text everywhere | `replaceAllText`                                                      |
+| Slides — insert text into a shape            | `insertSlideText`                                                     |
+| Slides — style text on a slide               | `applySlideTextStyle`                                                 |
+| Slides — insert image from URL               | `insertSlideImage`                                                    |
 
 Full catalog with parameter details: `docs/TOOLS.md` in the repo.
 
@@ -90,6 +95,33 @@ sendEmail({ to, subject, body, cc?, bcc? })
 ```
 
 `body` is **plain text only**. HTML is delivered as literal text — no rich formatting via this tool. Use a draft + manual edit if you need HTML.
+
+### Slides: template-driven deck (placeholder swap pattern)
+
+The most reliable way to build a Slides deck programmatically is to start from an existing template with placeholder tokens (`{{NAME}}`, `{{DATE}}`, etc.) and swap them via `replaceAllText`. This avoids the friction of computing shape objectIds.
+
+```
+1. Copy a template deck via Drive's copyFile, OR createPresentation(title)
+2. (Optional) addSlide(...) for any new slides beyond the template
+3. replaceAllText(presentationId, findText='{{NAME}}', replaceText='Alice')
+   — repeat per placeholder. occurrencesChanged tells you how many were swapped.
+4. (Optional) insertSlideImage(...) for charts or photos
+```
+
+For more granular control (insert text at a specific position, apply per-character formatting):
+
+```
+1. readPresentation(presentationId, format='json') to find shape objectIds
+2. insertSlideText(presentationId, shapeObjectId, text)
+3. applySlideTextStyle(presentationId, shapeObjectId, textRange={start, end}, style={...})
+```
+
+Notes for Slides:
+
+- **Slide layouts** in `addSlide`: `BLANK`, `TITLE`, `TITLE_AND_BODY` (default), `TITLE_AND_TWO_COLUMNS`, `TITLE_ONLY`, `SECTION_HEADER`, etc.
+- **Image insertion** requires a public URL reachable by Google. For local files, upload to Drive first (use `createDocument`/`copyFile` then share publicly) and pass the resulting URL.
+- **Text indices** in slides are 0-based and per-shape (different from Docs which uses 1-based document-wide indices).
+- **Speaker notes** are not included in `readPresentation` text output — use `format='json'` and inspect `slide.notesPage` if needed.
 
 ### Create + share a doc
 
