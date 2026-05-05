@@ -1,8 +1,10 @@
 import type { FastMCP } from 'fastmcp';
+import { UserError } from 'fastmcp';
 import { z } from 'zod';
 import { slides_v1 } from 'googleapis';
 import { getSlidesClient } from '../../clients.js';
 import { executeBatchUpdate } from './helpers.js';
+import { rejectionReasonForFetchableUrl } from './urlValidation.js';
 
 export function register(server: FastMCP) {
   server.addTool({
@@ -37,6 +39,16 @@ export function register(server: FastMCP) {
       log.info(
         `insertSlideImage on slide ${args.slideObjectId} of ${args.presentationId} (url: ${args.imageUrl})`
       );
+
+      // Best-effort SSRF block — Google's Slides API fetches the URL
+      // server-side and could expose internal services (cloud metadata,
+      // RFC1918 ranges) to an attacker who can call this tool. See
+      // urlValidation.ts for the threat model and known limitations
+      // (no DNS resolution, so DNS-rebinding is NOT blocked here).
+      const reason = rejectionReasonForFetchableUrl(args.imageUrl);
+      if (reason) {
+        throw new UserError(`Refusing to fetch image URL: ${reason}`);
+      }
 
       const elementProperties: slides_v1.Schema$PageElementProperties = {
         pageObjectId: args.slideObjectId,

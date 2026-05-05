@@ -83,6 +83,14 @@ export function register(server: FastMCP) {
         fields.push('foregroundColor');
       }
 
+      // Defense in depth: the schema's `.refine(...)` only fires when
+      // FastMCP validates input. Direct programmatic callers (or
+      // composing tools) can bypass it; the Slides API would respond
+      // with a generic 400. Surface a clearer error here.
+      if (fields.length === 0) {
+        throw new UserError('At least one style option must be provided.');
+      }
+
       const range: slides_v1.Schema$Range = args.textRange
         ? {
             type: 'FIXED_RANGE',

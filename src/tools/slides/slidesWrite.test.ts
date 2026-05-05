@@ -17,6 +17,10 @@ import { register as registerInsertSlideImage } from './insertSlideImage.js';
 const mockGetSlidesClient = vi.mocked(getSlidesClient);
 const mockLog = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
 
+// NOTE: tests bypass FastMCP's schema validation (we capture `execute`
+// directly), so Zod `.default()` and `.refine()` do NOT apply. Pass
+// explicit values for any defaulted fields and assert on runtime guards
+// rather than schema-only behavior.
 function captureExecute(register: (server: any) => void) {
   let execute: (args: any, ctx: any) => Promise<string> = async () => '';
   register({ addTool: (config: any) => (execute = config.execute) });
@@ -67,6 +71,27 @@ describe('addSlide', () => {
     const req = batchUpdate.mock.calls[0][0].requestBody.requests[0];
     expect(req.createSlide.slideLayoutReference.predefinedLayout).toBe('TITLE_AND_BODY');
     expect(req.createSlide.insertionIndex).toBeUndefined();
+  });
+
+  it('forwards a caller-supplied slideObjectId to createSlide', async () => {
+    const { client, batchUpdate } = makeMockSlides({
+      replies: [{ createSlide: { objectId: 'my_custom_id' } }],
+    });
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const execute = captureExecute(registerAddSlide);
+    const result = await execute(
+      {
+        presentationId: 'p1',
+        predefinedLayout: 'BLANK',
+        slideObjectId: 'my_custom_id',
+      },
+      { log: mockLog }
+    );
+
+    const req = batchUpdate.mock.calls[0][0].requestBody.requests[0];
+    expect(req.createSlide.objectId).toBe('my_custom_id');
+    expect(JSON.parse(result).slideObjectId).toBe('my_custom_id');
   });
 });
 
@@ -230,13 +255,29 @@ describe('applySlideTextStyle', () => {
     expect(req.fields).toBe('italic');
   });
 
-  it('rejects an empty style object via the schema refine', async () => {
+  it('runtime-guards against an all-undefined style (schema-bypass safety)', async () => {
     const { client } = makeMockSlides({});
     mockGetSlidesClient.mockResolvedValue(client as any);
 
-    // Schema validation happens inside FastMCP normally; here we invoke
-    // execute() directly with a pre-validated arg, so simulate the bad
-    // case via the textRange order check instead.
+    // Schema-level .refine() runs only via FastMCP. Direct callers can
+    // bypass it; the runtime guard inside execute() must catch this.
+    const execute = captureExecute(registerApplySlideTextStyle);
+    await expect(
+      execute(
+        {
+          presentationId: 'p1',
+          shapeObjectId: 'shape_1',
+          style: {},
+        },
+        { log: mockLog }
+      )
+    ).rejects.toThrow(/At least one style option/);
+  });
+
+  it('rejects textRange where endIndex <= startIndex', async () => {
+    const { client } = makeMockSlides({});
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
     const execute = captureExecute(registerApplySlideTextStyle);
     await expect(
       execute(
@@ -283,6 +324,29 @@ describe('insertSlideImage', () => {
       width: { magnitude: 100, unit: 'PT' },
       height: { magnitude: 80, unit: 'PT' },
     });
+  });
+
+  it.each([
+    'http://169.254.169.254/computeMetadata/v1/',
+    'http://localhost:8080/admin',
+    'http://10.0.0.5/secret',
+    'http://172.16.0.1/internal',
+    'http://192.168.1.1/router',
+    'http://127.0.0.1:5432/db',
+    'http://metadata.google.internal/',
+  ])('rejects fetch of private/loopback/link-local URL: %s', async (badUrl) => {
+    const { client, batchUpdate } = makeMockSlides({});
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const execute = captureExecute(registerInsertSlideImage);
+    await expect(
+      execute(
+        { presentationId: 'p1', slideObjectId: 'slide_a', imageUrl: badUrl },
+        { log: mockLog }
+      )
+    ).rejects.toThrow(/Refusing to fetch image URL/);
+    // No batchUpdate should be issued for blocked URLs.
+    expect(batchUpdate).not.toHaveBeenCalled();
   });
 
   it('omits size and transform when not specified', async () => {

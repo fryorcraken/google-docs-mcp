@@ -38,6 +38,11 @@ export function register(server: FastMCP) {
         .describe('Slide layout. TITLE_AND_BODY is the default; BLANK for an empty slide.'),
       slideObjectId: z
         .string()
+        .min(5)
+        .max(50)
+        .regex(/^[a-zA-Z0-9_-]+$/, {
+          message: 'slideObjectId must match [a-zA-Z0-9_-]+ (Slides API requirement).',
+        })
         .optional()
         .describe(
           'Optional explicit objectId for the new slide. Auto-generated if omitted. Must be 5–50 chars, [a-zA-Z0-9_-].'
