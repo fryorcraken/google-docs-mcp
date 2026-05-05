@@ -21,20 +21,14 @@ function captureToolExecute() {
   register(fakeServer as any);
 }
 
-const mockLog = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
-
-// Helper to build a mock docs client whose first .get() call returns a tab
-// inventory (used by resolveTab) and whose subsequent calls return the
-// supplied content payload.
-function makeMockDocs(opts: {
-  tabsInventory: any;
-  contentResponse: any;
-}) {
-  const get = vi.fn();
-  get.mockResolvedValueOnce({ data: opts.tabsInventory });
-  get.mockResolvedValueOnce({ data: opts.contentResponse });
+// Single-get mock: readGoogleDoc now issues exactly one documents.get per
+// invocation and resolves the tab against the same payload.
+function makeMockDocs(response: any) {
+  const get = vi.fn().mockResolvedValue({ data: response });
   return { documents: { get } };
 }
+
+const mockLog = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
 
 describe('readDocument — tab handling (issue #1 regression)', () => {
   beforeEach(() => {
@@ -45,49 +39,32 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
   it('reads first tab content when tabbed doc is read with no tabId', async () => {
     // Regression: previously this path used the legacy body field mask on a
     // tabbed doc, returning "Document found, but appears empty." or the
-    // comment-field validation error from issue #1. With resolveTab, we
-    // detect the doc is tabbed and read the first tab's body.
+    // comment-field validation error from issue #1.
     const mockDocs = makeMockDocs({
-      tabsInventory: {
-        tabs: [
-          { tabProperties: { tabId: 't.first', title: 'First' } },
-          { tabProperties: { tabId: 't.second', title: 'Second' } },
-        ],
-      },
-      contentResponse: {
-        title: 'Tabbed Doc',
-        documentId: 'doc1',
-        tabs: [
-          {
-            tabProperties: { tabId: 't.first', title: 'First' },
-            documentTab: {
-              body: {
-                content: [
-                  {
-                    paragraph: {
-                      elements: [{ textRun: { content: 'first tab content' } }],
-                    },
-                  },
-                ],
-              },
+      title: 'Tabbed Doc',
+      documentId: 'doc1',
+      tabs: [
+        {
+          tabProperties: { tabId: 't.first', title: 'First' },
+          documentTab: {
+            body: {
+              content: [
+                { paragraph: { elements: [{ textRun: { content: 'first tab content' } }] } },
+              ],
             },
           },
-          {
-            tabProperties: { tabId: 't.second', title: 'Second' },
-            documentTab: {
-              body: {
-                content: [
-                  {
-                    paragraph: {
-                      elements: [{ textRun: { content: 'second tab content' } }],
-                    },
-                  },
-                ],
-              },
+        },
+        {
+          tabProperties: { tabId: 't.second', title: 'Second' },
+          documentTab: {
+            body: {
+              content: [
+                { paragraph: { elements: [{ textRun: { content: 'second tab content' } }] } },
+              ],
             },
           },
-        ],
-      },
+        },
+      ],
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
@@ -103,36 +80,24 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
 
   it('reads requested tab content when tabId is explicit', async () => {
     const mockDocs = makeMockDocs({
-      tabsInventory: {
-        tabs: [
-          { tabProperties: { tabId: 't.first' } },
-          { tabProperties: { tabId: 't.target' } },
-        ],
-      },
-      contentResponse: {
-        tabs: [
-          {
-            tabProperties: { tabId: 't.first' },
-            documentTab: {
-              body: {
-                content: [
-                  { paragraph: { elements: [{ textRun: { content: 'wrong tab' } }] } },
-                ],
-              },
+      tabs: [
+        {
+          tabProperties: { tabId: 't.first' },
+          documentTab: {
+            body: {
+              content: [{ paragraph: { elements: [{ textRun: { content: 'wrong tab' } }] } }],
             },
           },
-          {
-            tabProperties: { tabId: 't.target' },
-            documentTab: {
-              body: {
-                content: [
-                  { paragraph: { elements: [{ textRun: { content: 'right tab' } }] } },
-                ],
-              },
+        },
+        {
+          tabProperties: { tabId: 't.target' },
+          documentTab: {
+            body: {
+              content: [{ paragraph: { elements: [{ textRun: { content: 'right tab' } }] } }],
             },
           },
-        ],
-      },
+        },
+      ],
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
@@ -147,13 +112,10 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
 
   it('reads legacy body for non-tabbed docs (backward compat)', async () => {
     const mockDocs = makeMockDocs({
-      tabsInventory: {}, // no tabs
-      contentResponse: {
-        body: {
-          content: [
-            { paragraph: { elements: [{ textRun: { content: 'legacy body content' } }] } },
-          ],
-        },
+      body: {
+        content: [
+          { paragraph: { elements: [{ textRun: { content: 'legacy body content' } }] } },
+        ],
       },
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
@@ -166,44 +128,88 @@ describe('readDocument — tab handling (issue #1 regression)', () => {
     expect(result).toContain('legacy body content');
   });
 
-  it('uses includeTabsContent=true for tabbed docs in the second get() call', async () => {
+  it('issues exactly one documents.get call (no separate resolve fetch)', async () => {
     const mockDocs = makeMockDocs({
-      tabsInventory: { tabs: [{ tabProperties: { tabId: 't.x' } }] },
-      contentResponse: {
-        tabs: [
-          {
-            tabProperties: { tabId: 't.x' },
-            documentTab: { body: { content: [] } },
-          },
-        ],
-      },
+      tabs: [
+        {
+          tabProperties: { tabId: 't.x' },
+          documentTab: { body: { content: [] } },
+        },
+      ],
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
     await toolExecute({ documentId: 'doc1', format: 'text' }, { log: mockLog });
 
-    // First call is resolveTab (minimal mask). Second call is the content read.
-    const calls = mockDocs.documents.get.mock.calls;
-    expect(calls.length).toBe(2);
-    expect(calls[1][0].includeTabsContent).toBe(true);
-    // The content-read field mask must NOT be the legacy body-only mask,
-    // which is what triggered the comment-field validation error on tabbed
-    // docs in issue #1.
-    expect(calls[1][0].fields).toContain('documentTab');
+    expect(mockDocs.documents.get).toHaveBeenCalledOnce();
+    expect(mockDocs.documents.get).toHaveBeenCalledWith({
+      documentId: 'doc1',
+      includeTabsContent: true,
+      fields: expect.stringContaining('documentTab'),
+    });
   });
 
-  it('uses legacy body field mask for non-tabbed docs', async () => {
+  it('format=json on tabbed doc preserves lists field', async () => {
+    // Critical regression check: the tabbed contentSource previously dropped
+    // `lists` (and inlineObjects, etc.), making JSON output structurally
+    // different from the non-tabbed path and breaking markdown rendering.
     const mockDocs = makeMockDocs({
-      tabsInventory: {},
-      contentResponse: { body: { content: [] } },
+      tabs: [
+        {
+          tabProperties: { tabId: 't.first' },
+          documentTab: {
+            body: { content: [{ paragraph: { elements: [{ textRun: { content: 'x' } }] } }] },
+            lists: { 'kix.123': { listProperties: { nestingLevels: [{ glyphType: 'BULLET' }] } } },
+            inlineObjects: { 'kix.img1': { objectId: 'kix.img1' } },
+          },
+        },
+      ],
     });
     mockGetDocsClient.mockResolvedValue(mockDocs as any);
 
-    await toolExecute({ documentId: 'doc1', format: 'text' }, { log: mockLog });
+    const result = await toolExecute(
+      { documentId: 'doc1', format: 'json' },
+      { log: mockLog }
+    );
 
-    const calls = mockDocs.documents.get.mock.calls;
-    expect(calls[1][0].includeTabsContent).toBe(false);
-    expect(calls[1][0].fields).toContain('body');
-    expect(calls[1][0].fields).not.toContain('documentTab');
+    const parsed = JSON.parse(result);
+    expect(parsed.lists).toBeDefined();
+    expect(parsed.lists['kix.123']).toBeDefined();
+    expect(parsed.inlineObjects).toBeDefined();
+    expect(parsed.body).toBeDefined();
+  });
+
+  it('format=markdown on tabbed doc retains content from the resolved tab', async () => {
+    // The markdown transformer needs `lists` to render bullets — without
+    // the field, list items lose their glyph type. We don't assert specific
+    // markdown output (transformer behavior is tested elsewhere); we just
+    // verify the transformer ran against the tab content.
+    const mockDocs = makeMockDocs({
+      tabs: [
+        {
+          tabProperties: { tabId: 't.first' },
+          documentTab: {
+            body: {
+              content: [
+                { paragraph: { elements: [{ textRun: { content: 'item one\n' } }] } },
+              ],
+            },
+            lists: {
+              'kix.list1': {
+                listProperties: { nestingLevels: [{ glyphType: 'GLYPH_TYPE_UNSPECIFIED' }] },
+              },
+            },
+          },
+        },
+      ],
+    });
+    mockGetDocsClient.mockResolvedValue(mockDocs as any);
+
+    const result = await toolExecute(
+      { documentId: 'doc1', format: 'markdown' },
+      { log: mockLog }
+    );
+
+    expect(result).toContain('item one');
   });
 });

@@ -1416,40 +1416,42 @@ export interface TabResolution {
 }
 
 /**
- * Resolves which tab a tool should operate on.
+ * Field mask for resolveTab's standalone fetch. Recursively requests
+ * `tabProperties` at every nesting depth.
  *
- * - For documents without tabs (legacy `body`-only), returns
- *   `{ isTabbed: false, tabId: undefined, firstTabId: undefined }`.
- *   Tools should fall back to their existing `body`-mask behavior.
- * - For tabbed documents:
- *   - If `requestedTabId` is provided and matches an existing tab,
- *     returns that ID.
- *   - If `requestedTabId` is provided but doesn't match, throws
- *     `UserError` listing the available tab IDs.
- *   - If `requestedTabId` is `undefined`, defaults to the first tab.
- *
- * Cost: one `documents.get` per call with a minimal field mask
- * (`tabs(tabProperties.tabId)`). Each tool incurs this RTT once per
- * invocation. We accept the cost because the alternative — requiring
- * every caller to know in advance whether a doc is tabbed — is what
- * caused the fleet of bugs this helper exists to fix (issue #1).
+ * Google Docs field masks don't support recursion syntax. Per Google's
+ * field-mask conventions, a bare field name (no parentheses) returns
+ * all of that field's sub-fields including descendants. So `childTabs`
+ * with no restriction returns the full childTabs subtree. We keep the
+ * top-level `tabProperties` restricted to (tabId,title) to avoid
+ * pulling documentTab content we don't need for resolution.
  */
-export async function resolveTab(
-  docs: Docs,
+const TAB_RESOLUTION_FIELDS = 'tabs(tabProperties(tabId,title),childTabs)';
+
+/**
+ * Pure tab-resolution logic that operates on an already-fetched
+ * `Schema$Document`. Tools that need both the tab inventory AND content
+ * should issue one `documents.get` with their content field mask, then
+ * call this directly — avoiding the second RTT incurred by {@link resolveTab}.
+ *
+ * @param doc          The document payload from `docs.documents.get`. Must
+ *                     have been fetched with `includeTabsContent: true` and
+ *                     a field mask that includes at least
+ *                     `tabs(tabProperties(tabId), childTabs)`.
+ * @param documentId   Used only in error messages.
+ * @param requestedTabId Optional tabId the caller wants to operate on.
+ */
+export function resolveTabFromDocument(
+  doc: docs_v1.Schema$Document,
   documentId: string,
   requestedTabId?: string
-): Promise<TabResolution> {
-  const res = await docs.documents.get({
-    documentId,
-    includeTabsContent: true,
-    fields: 'tabs(tabProperties(tabId,title),childTabs(tabProperties(tabId,title)))',
-  });
-
-  const tabs = res.data.tabs;
+): TabResolution {
+  const tabs = doc.tabs;
   if (!tabs || tabs.length === 0) {
     if (requestedTabId) {
       throw new UserError(
-        `Document ${documentId} has no tabs, but tabId="${requestedTabId}" was supplied.`
+        `Document ${documentId} has no tabs, but tabId="${requestedTabId}" was supplied. ` +
+          'Omit tabId to read this document.'
       );
     }
     return { tabId: undefined, isTabbed: false, firstTabId: undefined };
@@ -1478,4 +1480,36 @@ export async function resolveTab(
   }
 
   return { tabId: firstTabId, isTabbed: true, firstTabId };
+}
+
+/**
+ * Resolves which tab a tool should operate on.
+ *
+ * - For documents without tabs (legacy `body`-only), returns
+ *   `{ isTabbed: false, tabId: undefined, firstTabId: undefined }`.
+ *   Tools should fall back to their existing `body`-mask behavior.
+ * - For tabbed documents:
+ *   - If `requestedTabId` is provided and matches an existing tab,
+ *     returns that ID.
+ *   - If `requestedTabId` is provided but doesn't match, throws
+ *     `UserError` listing the available tab IDs.
+ *   - If `requestedTabId` is `undefined`, defaults to the first tab.
+ *
+ * Cost: one `documents.get` per call with a minimal field mask. Each
+ * tool incurs this RTT once per invocation. Tools that already need the
+ * full document payload should fetch it themselves with their preferred
+ * mask and call {@link resolveTabFromDocument} instead — saves the RTT
+ * and avoids a race window where tabs change between calls.
+ */
+export async function resolveTab(
+  docs: Docs,
+  documentId: string,
+  requestedTabId?: string
+): Promise<TabResolution> {
+  const res = await docs.documents.get({
+    documentId,
+    includeTabsContent: true,
+    fields: TAB_RESOLUTION_FIELDS,
+  });
+  return resolveTabFromDocument(res.data, documentId, requestedTabId);
 }
