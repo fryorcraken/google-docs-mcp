@@ -382,7 +382,7 @@ Merging changes to `main` does **not** automatically update your Cloud Run servi
 - **New features** — redeploy at your convenience
 - **Breaking changes** — check the release notes before redeploying
 
-You can check your current version against the latest release on the [releases page](https://github.com/a-bonus/google-docs-mcp/releases).
+You can check your current version against the latest release on the [releases page](https://github.com/fryorcraken/google-docs-mcp/releases).
 
 ---
 

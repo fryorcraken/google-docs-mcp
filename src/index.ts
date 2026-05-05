@@ -5,8 +5,8 @@
 // Single entry point for the Google Docs MCP Server.
 //
 // Usage:
-//   @a-bonus/google-docs-mcp          Start the MCP server (default)
-//   @a-bonus/google-docs-mcp auth     Run the interactive OAuth flow
+//   @fryorcraken/google-docs-mcp          Start the MCP server (default)
+//   @fryorcraken/google-docs-mcp auth     Run the interactive OAuth flow
 //
 // Remote mode (env vars):
 //   MCP_TRANSPORT=httpStream           Use Streamable HTTP instead of stdio
