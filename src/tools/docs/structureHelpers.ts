@@ -1,5 +1,5 @@
 import { docs_v1 } from 'googleapis';
-import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
+import { getContentSource } from './contentSource.js';
 
 export interface ExtractedTableCell {
   rowIndex: number;
@@ -71,28 +71,8 @@ export interface ExtractedTableSnapshot {
   pinnedHeaderRowsCount: number;
 }
 
-function getContentSource(
-  doc: docs_v1.Schema$Document,
-  tabId?: string
-): docs_v1.Schema$StructuralElement[] {
-  if (tabId) {
-    const targetTab = GDocsHelpers.findTabById(doc, tabId);
-    if (!targetTab?.documentTab?.body?.content) {
-      return [];
-    }
-    return targetTab.documentTab.body.content;
-  }
-
-  if (doc.body?.content) {
-    return doc.body.content;
-  }
-
-  if (doc.tabs?.[0]?.documentTab?.body?.content) {
-    return doc.tabs[0].documentTab.body.content;
-  }
-
-  return [];
-}
+// getContentSource lives in contentSource.ts — shared with smartChipHelpers
+// so the throw-on-bad-tabId behavior stays consistent across read tools.
 
 function extractParagraphText(paragraph?: docs_v1.Schema$Paragraph): string {
   return (
