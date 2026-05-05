@@ -39,39 +39,35 @@ export function register(server: FastMCP) {
       );
 
       try {
-        // Determine if we need tabs content
-        const needsTabsContent = !!args.tabId;
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
 
-        const fields =
+        const legacyBodyFields =
           args.format === 'json' || args.format === 'markdown'
-            ? '*' // Get everything for structure analysis
-            : 'body(content(paragraph(elements(textRun(content)))))'; // Just text content
+            ? '*'
+            : 'body(content(paragraph(elements(textRun(content)))))';
 
         const res = await docs.documents.get({
           documentId: args.documentId,
-          includeTabsContent: needsTabsContent,
-          fields: needsTabsContent
+          includeTabsContent: tab.isTabbed,
+          fields: tab.isTabbed
             ? 'title,documentId,tabs(tabProperties,childTabs,documentTab(body,documentStyle,namedStyles,lists,inlineObjects,positionedObjects))'
-            : fields,
+            : legacyBodyFields,
         });
-        log.info(`Fetched doc: ${args.documentId}${args.tabId ? ` (tab: ${args.tabId})` : ''}`);
+        log.info(`Fetched doc: ${args.documentId}${tab.tabId ? ` (tab: ${tab.tabId})` : ''}`);
 
-        // If tabId is specified, find the specific tab
+        // For tabbed docs, extract the resolved tab's body. For legacy docs,
+        // use the document body directly.
         let contentSource: any;
-        if (args.tabId) {
-          const targetTab = GDocsHelpers.findTabById(res.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
+        if (tab.isTabbed) {
+          const targetTab = GDocsHelpers.findTabById(res.data, tab.tabId!);
+          if (!targetTab?.documentTab) {
             throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
+              `Tab "${tab.tabId}" content unavailable (may not be a document tab).`
             );
           }
           contentSource = { body: targetTab.documentTab.body };
           log.info(`Using content from tab: ${targetTab.tabProperties?.title || 'Untitled'}`);
         } else {
-          // Use the document body (backward compatible)
           contentSource = res.data;
         }
 
