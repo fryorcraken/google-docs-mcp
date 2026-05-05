@@ -39,39 +39,46 @@ export function register(server: FastMCP) {
       );
 
       try {
-        // Determine if we need tabs content
-        const needsTabsContent = !!args.tabId;
-
+        // Single fetch: ask for both the legacy body AND the tabs payload.
+        // For tabbed docs, body is empty and tabs is populated; for legacy
+        // docs, the reverse. This avoids a second RTT and the race window
+        // between tab resolution and content fetch.
         const fields =
           args.format === 'json' || args.format === 'markdown'
-            ? '*' // Get everything for structure analysis
-            : 'body(content(paragraph(elements(textRun(content)))))'; // Just text content
+            ? '*'
+            : 'title,documentId,body(content(paragraph(elements(textRun(content))),table,sectionBreak,startIndex,endIndex)),tabs(tabProperties,childTabs,documentTab(body,documentStyle,namedStyles,lists,inlineObjects,positionedObjects))';
 
         const res = await docs.documents.get({
           documentId: args.documentId,
-          includeTabsContent: needsTabsContent,
-          fields: needsTabsContent
-            ? 'title,documentId,tabs(tabProperties,childTabs,documentTab(body,documentStyle,namedStyles,lists,inlineObjects,positionedObjects))'
-            : fields,
+          includeTabsContent: true,
+          fields,
         });
-        log.info(`Fetched doc: ${args.documentId}${args.tabId ? ` (tab: ${args.tabId})` : ''}`);
 
-        // If tabId is specified, find the specific tab
+        const tab = GDocsHelpers.resolveTabFromDocument(res.data, args.documentId, args.tabId);
+        log.info(`Fetched doc: ${args.documentId}${tab.tabId ? ` (tab: ${tab.tabId})` : ''}`);
+
+        // For tabbed docs, surface the resolved tab's documentTab fields under
+        // the same `body`/`lists`/etc. shape that downstream renderers expect.
+        // Without this, the markdown transformer (which reads `lists`) would
+        // lose bullet/numbering metadata on tabbed docs.
         let contentSource: any;
-        if (args.tabId) {
-          const targetTab = GDocsHelpers.findTabById(res.data, args.tabId);
-          if (!targetTab) {
-            throw new UserError(`Tab with ID "${args.tabId}" not found in document.`);
-          }
-          if (!targetTab.documentTab) {
+        if (tab.isTabbed) {
+          const targetTab = GDocsHelpers.findTabById(res.data, tab.tabId!);
+          if (!targetTab?.documentTab) {
             throw new UserError(
-              `Tab "${args.tabId}" does not have content (may not be a document tab).`
+              `Tab "${tab.tabId}" content unavailable (may not be a document tab).`
             );
           }
-          contentSource = { body: targetTab.documentTab.body };
+          contentSource = {
+            body: targetTab.documentTab.body,
+            lists: targetTab.documentTab.lists,
+            documentStyle: targetTab.documentTab.documentStyle,
+            namedStyles: targetTab.documentTab.namedStyles,
+            inlineObjects: targetTab.documentTab.inlineObjects,
+            positionedObjects: targetTab.documentTab.positionedObjects,
+          };
           log.info(`Using content from tab: ${targetTab.tabProperties?.title || 'Untitled'}`);
         } else {
-          // Use the document body (backward compatible)
           contentSource = res.data;
         }
 
