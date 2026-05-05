@@ -33,6 +33,8 @@ Practical guide for picking and calling tools from this MCP server. Assumes the 
 | Move/copy/create files                       | `moveFile`, `copyFile`, `createFolder`, `createDocument`              |
 | Read/send Gmail                              | `listMessages`, `getMessage`, `sendEmail`, `createDraft`, `sendDraft` |
 | Calendar events                              | `listEvents`, `createEvent`, `updateEvent`, `quickAddEvent`           |
+| Slides — read/list                           | `readPresentation`, `listSlides`                                      |
+| Slides — create new presentation             | `createPresentation`                                                  |
 
 Full catalog with parameter details: `docs/TOOLS.md` in the repo.
 

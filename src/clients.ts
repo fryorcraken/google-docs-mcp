@@ -1,5 +1,14 @@
 // src/clients.ts
-import { google, docs_v1, drive_v3, sheets_v4, script_v1, gmail_v1, calendar_v3 } from 'googleapis';
+import {
+  google,
+  docs_v1,
+  drive_v3,
+  sheets_v4,
+  script_v1,
+  gmail_v1,
+  calendar_v3,
+  slides_v1,
+} from 'googleapis';
 import { UserError } from 'fastmcp';
 import { OAuth2Client } from 'google-auth-library';
 import { authorize } from './auth.js';
@@ -15,6 +24,7 @@ let googleSheets: sheets_v4.Sheets | null = null;
 let googleScript: script_v1.Script | null = null;
 let googleGmail: gmail_v1.Gmail | null = null;
 let googleCalendar: calendar_v3.Calendar | null = null;
+let googleSlides: slides_v1.Slides | null = null;
 
 // --- Initialization ---
 export async function initializeGoogleClient() {
@@ -27,6 +37,7 @@ export async function initializeGoogleClient() {
       googleScript,
       googleGmail,
       googleCalendar,
+      googleSlides,
     };
   if (!authClient) {
     try {
@@ -39,6 +50,7 @@ export async function initializeGoogleClient() {
       googleScript = google.script({ version: 'v1', auth: authClient });
       googleGmail = google.gmail({ version: 'v1', auth: authClient });
       googleCalendar = google.calendar({ version: 'v3', auth: authClient });
+      googleSlides = google.slides({ version: 'v1', auth: authClient });
       logger.info('Google API client authorized successfully.');
     } catch (error) {
       logger.error('FATAL: Failed to initialize Google API client:', error);
@@ -49,6 +61,7 @@ export async function initializeGoogleClient() {
       googleScript = null;
       googleGmail = null;
       googleCalendar = null;
+      googleSlides = null;
       throw new Error('Google client initialization failed. Cannot start server tools.');
     }
   }
@@ -69,6 +82,9 @@ export async function initializeGoogleClient() {
   }
   if (authClient && !googleCalendar) {
     googleCalendar = google.calendar({ version: 'v3', auth: authClient });
+  }
+  if (authClient && !googleSlides) {
+    googleSlides = google.slides({ version: 'v1', auth: authClient });
   }
 
   if (!googleDocs || !googleDrive || !googleSheets) {
@@ -196,4 +212,20 @@ export async function getCalendarClient() {
     );
   }
   return calendar;
+}
+
+// --- Helper to get Slides client within tools ---
+export async function getSlidesClient() {
+  const remote = requestClients.getStore();
+  if (remote) return remote.slides;
+  if (isRemote) {
+    throw new UserError('Request context missing. Tool must be called within an MCP request.');
+  }
+  const { googleSlides: slides } = await initializeGoogleClient();
+  if (!slides) {
+    throw new UserError(
+      'Google Slides client is not initialized. Authentication might have failed during startup or lost connection.'
+    );
+  }
+  return slides;
 }

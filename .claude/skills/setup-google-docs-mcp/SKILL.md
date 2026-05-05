@@ -21,9 +21,10 @@ The defaults are: `npx`, single account, Claude Desktop. Adjust below as needed.
 
 1. Open the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create or select a project.
-3. **APIs & Services → Library**, enable **all five** APIs (the server requests scopes for all of them unconditionally on auth — skipping any one will cause `invalid_scope` during the auth flow):
+3. **APIs & Services → Library**, enable **all six** APIs (the server requests scopes for all of them unconditionally on auth — skipping any one will cause `invalid_scope` during the auth flow):
    - Google Docs API
    - Google Sheets API
+   - Google Slides API
    - Google Drive API
    - Gmail API
    - Google Calendar API
@@ -31,7 +32,7 @@ The defaults are: `npx`, single account, Claude Desktop. Adjust below as needed.
 4. **APIs & Services → OAuth consent screen**:
    - User type: **External** (unless on a Google Workspace org and you want Internal)
    - Add the user's own email under **Test users**
-   - Scopes section: you don't need to pre-add scopes — the server's OAuth request includes the full list (`documents`, `drive`, `spreadsheets`, `script.external_request`, `gmail.modify`, `calendar.events`) and Google will surface them on first authorization.
+   - Scopes section: you don't need to pre-add scopes — the server's OAuth request includes the full list (`documents`, `drive`, `spreadsheets`, `presentations`, `script.external_request`, `gmail.modify`, `calendar.events`) and Google will surface them on first authorization.
 5. **APIs & Services → Credentials → Create Credentials → OAuth client ID**:
    - Application type: **Desktop app**
    - Note the **Client ID** and **Client Secret** from the confirmation popup.
