@@ -40,7 +40,9 @@ export function register(server: FastMCP) {
           documentId: args.documentId,
           includeTabsContent: true,
           fields:
-            'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
+            // tabs(...) MUST include TAB_RESOLUTION_FIELDS_INNER so
+            // resolveTabFromDocument can find tabs nested under childTabs.
+            `body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(${GDocsHelpers.TAB_RESOLUTION_FIELDS_INNER},documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))`,
         });
 
         // Resolve the tab against the doc we already fetched (no extra RTT).

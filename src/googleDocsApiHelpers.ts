@@ -1416,6 +1416,19 @@ export interface TabResolution {
 }
 
 /**
+ * Field mask fragment that satisfies {@link resolveTabFromDocument}.
+ *
+ * Tools that fetch the document themselves (to combine tab discovery
+ * with content reads in a single RTT) MUST include this fragment in
+ * their mask, otherwise `resolveTabFromDocument` will fail to find
+ * tabs nested under `childTabs` and reject valid `tabId` arguments.
+ *
+ * Example:
+ *   `body(...),tabs(${TAB_RESOLUTION_FIELDS_INNER},documentTab(...))`
+ */
+export const TAB_RESOLUTION_FIELDS_INNER = 'tabProperties(tabId,title),childTabs';
+
+/**
  * Field mask for resolveTab's standalone fetch. Recursively requests
  * `tabProperties` at every nesting depth.
  *
@@ -1426,7 +1439,7 @@ export interface TabResolution {
  * top-level `tabProperties` restricted to (tabId,title) to avoid
  * pulling documentTab content we don't need for resolution.
  */
-const TAB_RESOLUTION_FIELDS = 'tabs(tabProperties(tabId,title),childTabs)';
+const TAB_RESOLUTION_FIELDS = `tabs(${TAB_RESOLUTION_FIELDS_INNER})`;
 
 /**
  * Pure tab-resolution logic that operates on an already-fetched
