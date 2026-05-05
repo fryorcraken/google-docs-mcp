@@ -32,11 +32,24 @@ describe('parseEnabledDomains', () => {
 
   it('throws on unknown domain names with the valid list in the message', () => {
     expect(() => parseEnabledDomains('docs,docks')).toThrow(/docks/);
-    expect(() => parseEnabledDomains('docs,docks')).toThrow(/Valid: docs/);
+    // Assert EVERY domain name appears in the "Valid: ..." segment, so
+    // a future regression that truncates the list is caught.
+    expect(() => parseEnabledDomains('docs,docks')).toThrow(
+      new RegExp(`Valid:.*${Object.keys(ALL_DOMAINS).join('.*')}`)
+    );
   });
 
   it('lists every unknown name (not just the first)', () => {
     expect(() => parseEnabledDomains('docs,foo,bar')).toThrow(/foo, bar/);
+  });
+
+  it('throws a clear hint when a scope URL is passed instead of a domain name', () => {
+    expect(() => parseEnabledDomains('https://www.googleapis.com/auth/documents')).toThrow(
+      /looks like a scope URL/
+    );
+    expect(() => parseEnabledDomains('  HTTPS://www.googleapis.com/auth/drive  ')).toThrow(
+      /looks like a scope URL/
+    );
   });
 });
 

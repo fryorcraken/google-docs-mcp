@@ -34,7 +34,11 @@ export interface DomainConfig {
  *
  * `script.external_request` is bundled under `docs` because the only
  * caller (insertImage's Apps Script integration) is a Docs feature.
- * If you opt out of `docs` you also opt out of the Apps Script scope.
+ * - Opting OUT of `docs` also drops the Apps Script scope.
+ * - Opting INTO `docs` always grants the Apps Script scope, even if
+ *   the caller never uses local-image insertion. If you need
+ *   docs-without-script, file an issue and we'll consider splitting
+ *   `appsScript` as its own optional domain.
  */
 export const ALL_DOMAINS: Record<string, DomainConfig> = {
   docs: {
@@ -80,6 +84,17 @@ export const ALL_DOMAINS: Record<string, DomainConfig> = {
  */
 export function parseEnabledDomains(envValue?: string): string[] {
   if (!envValue?.trim()) return Object.keys(ALL_DOMAINS);
+
+  // Footgun guard: users sometimes assume the env var takes scope URLs
+  // (because of the variable name) rather than short domain names. Detect
+  // and bounce them with a clear hint before the unknown-domain throw.
+  if (/^https?:\/\//i.test(envValue.trim())) {
+    throw new Error(
+      `GOOGLE_MCP_SCOPES looks like a scope URL — pass short domain names instead. ` +
+        `Valid: ${Object.keys(ALL_DOMAINS).join(', ')}. ` +
+        `Example: GOOGLE_MCP_SCOPES=docs,drive`
+    );
+  }
 
   const requested = envValue
     .toLowerCase()

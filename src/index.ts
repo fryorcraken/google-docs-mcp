@@ -107,11 +107,19 @@ if (isRemote) {
   }
 }
 
-const GOOGLE_API_SCOPES = [
-  'openid',
-  'email',
-  ...getEnabledScopes(parseEnabledDomains(process.env.GOOGLE_MCP_SCOPES)),
-];
+// Validate GOOGLE_MCP_SCOPES once at startup, fail-fast with a friendly
+// log line rather than a stack trace. Mirrors the BASE_URL/CLIENT_ID
+// fatal-exit pattern above. Subsequent calls in auth.ts and tools/index.ts
+// re-parse but won't throw because we've already validated here.
+let _enabledDomains: string[];
+try {
+  _enabledDomains = parseEnabledDomains(process.env.GOOGLE_MCP_SCOPES);
+} catch (err: any) {
+  logger.error(`FATAL: ${err.message ?? err}`);
+  process.exit(1);
+}
+
+const GOOGLE_API_SCOPES = ['openid', 'email', ...getEnabledScopes(_enabledDomains)];
 
 const oauthProxy = isRemote
   ? new OAuthProxy({
