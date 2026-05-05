@@ -184,4 +184,8 @@ describe('extractSmartChips', () => {
       },
     ]);
   });
+
+  it('throws UserError when an unknown tabId is supplied (shared getContentSource)', () => {
+    expect(() => extractSmartChips(mockDocument, 't.bogus')).toThrow(/Tab "t.bogus" not found/);
+  });
 });

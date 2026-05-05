@@ -1,5 +1,5 @@
 import { docs_v1 } from 'googleapis';
-import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
+import { getContentSource } from './contentSource.js';
 
 export interface ExtractedSmartChip {
   type: 'date' | 'richLink' | 'person';
@@ -7,21 +7,6 @@ export interface ExtractedSmartChip {
   endIndex: number | null;
   text?: string | null;
   properties: Record<string, unknown>;
-}
-
-function getContentSource(
-  doc: docs_v1.Schema$Document,
-  tabId?: string
-): docs_v1.Schema$StructuralElement[] {
-  if (tabId) {
-    const targetTab = GDocsHelpers.findTabById(doc, tabId);
-    if (!targetTab?.documentTab?.body?.content) return [];
-    return targetTab.documentTab.body.content;
-  }
-
-  if (doc.body?.content) return doc.body.content;
-  if (doc.tabs?.[0]?.documentTab?.body?.content) return doc.tabs[0].documentTab.body.content;
-  return [];
 }
 
 function visitContent(
