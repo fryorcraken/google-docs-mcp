@@ -9,6 +9,7 @@ import * as http from 'http';
 import { fileURLToPath } from 'url';
 import * as crypto from 'crypto';
 import { logger } from './logger.js';
+import { getEnabledScopes, parseEnabledDomains } from './scopeConfig.js';
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -49,15 +50,18 @@ function getTokenPath(): string {
 // Scopes
 // ---------------------------------------------------------------------------
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/documents',
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/presentations',
-  'https://www.googleapis.com/auth/script.external_request',
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/calendar.events',
-];
+// Resolved lazily on first access (not at module load) to avoid a
+// circular-init issue: scopeConfig.ts imports tool register functions,
+// which transitively import this module via clients.ts. Reading
+// GOOGLE_MCP_SCOPES at top level would TDZ-fail before scopeConfig
+// finishes initializing.
+let _scopes: string[] | null = null;
+function getScopes(): string[] {
+  if (_scopes === null) {
+    _scopes = getEnabledScopes(parseEnabledDomains(process.env.GOOGLE_MCP_SCOPES));
+  }
+  return _scopes;
+}
 
 // ---------------------------------------------------------------------------
 // Client secrets resolution
@@ -118,7 +122,7 @@ async function authorizeWithServiceAccount(): Promise<JWT> {
     const auth = new JWT({
       email: serviceAccountKey.client_email,
       key: serviceAccountKey.private_key,
-      scopes: SCOPES,
+      scopes: getScopes(),
       subject: impersonateUser,
     });
     await auth.authorize();
@@ -161,7 +165,7 @@ async function loadSavedCredentialsIfExist(): Promise<OAuth2Client | null> {
     // user knows to run `auth` again before hitting a broken tool.
     if (typeof credentials.scope === 'string' && credentials.scope.length > 0) {
       const tokenScopes = new Set(credentials.scope.split(/\s+/).filter(Boolean));
-      const missing = SCOPES.filter((s) => !tokenScopes.has(s));
+      const missing = getScopes().filter((s) => !tokenScopes.has(s));
       if (missing.length > 0) {
         logger.warn(
           `Saved token is missing required scopes: ${missing.join(', ')}. ` +
@@ -187,7 +191,7 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
       refresh_token: client.credentials.refresh_token,
       // Store granted scopes so future startups can detect a coverage gap
       // when SCOPES is extended (see loadSavedCredentialsIfExist).
-      scope: client.credentials.scope ?? SCOPES.join(' '),
+      scope: client.credentials.scope ?? getScopes().join(' '),
     },
     null,
     2
@@ -286,7 +290,7 @@ async function authenticate(): Promise<OAuth2Client> {
 
   const authorizeUrl = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: SCOPES.join(' '),
+    scope: getScopes().join(' '),
     state,
   });
 

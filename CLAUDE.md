@@ -98,7 +98,13 @@ OAuth client ID + secret resolution, in priority order:
 
 Tokens persist to `${XDG_CONFIG_HOME:-~/.config}/google-docs-mcp/token.json` (mode 0600, dir 0600). When `GOOGLE_MCP_PROFILE` is set, tokens go in a per-profile subdirectory (alphanumerics/hyphens/underscores only — validated).
 
-Required OAuth scopes (Docs, Sheets, Drive, Gmail modify, Calendar events, Apps Script external request) are listed in `src/auth.ts:SCOPES` and `src/index.ts:GOOGLE_API_SCOPES` — keep them in sync if adding a new domain.
+OAuth scopes and tool registration are driven by a single registry in `src/scopeConfig.ts:ALL_DOMAINS`. Each domain entry maps a user-facing name (`docs`, `drive`, `sheets`, `slides`, `gmail`, `calendar`) to its scope strings AND its `register(server)` function. `src/auth.ts` and `src/index.ts:GOOGLE_API_SCOPES` derive their scope list from this registry, and `src/tools/index.ts:registerAllTools` derives the registration loop. **When adding a new domain, edit `scopeConfig.ts` only — the rest follows.**
+
+`GOOGLE_MCP_SCOPES=docs,drive` (env var) opts into a least-privilege subset: only those domains' scopes are requested at auth, and only those tools are registered. Empty/unset = all domains (backward compatible). Validation is fail-loud: an unknown name in the comma-list throws on startup.
+
+Note: `auth.ts` resolves the scope list lazily (`getScopes()`) rather than at module-load to avoid a circular-init cycle (`scopeConfig` → tool register fns → `clients` → `auth` → `scopeConfig`). Don't switch back to a top-level `const SCOPES = ...`.
+
+Tokens persist to `${XDG_CONFIG_HOME:-~/.config}/google-docs-mcp/token.json` (mode 0600, dir 0600). When `GOOGLE_MCP_PROFILE` is set, tokens go in a per-profile subdirectory (alphanumerics/hyphens/underscores only — validated). The persisted JSON includes the granted `scope` string so the next startup can detect coverage gaps and warn the user to re-auth.
 
 ## See also
 

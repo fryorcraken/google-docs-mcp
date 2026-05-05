@@ -27,6 +27,7 @@ import { registerLandingPage } from './landingPage.js';
 import { registerDownloadRoute } from './downloadProxy.js';
 import { FirestoreTokenStorage } from './firestoreTokenStorage.js';
 import { logger } from './logger.js';
+import { getEnabledScopes, parseEnabledDomains } from './scopeConfig.js';
 
 // --- Auth subcommand ---
 if (process.argv[2] === 'auth') {
@@ -109,13 +110,7 @@ if (isRemote) {
 const GOOGLE_API_SCOPES = [
   'openid',
   'email',
-  'https://www.googleapis.com/auth/documents',
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/presentations',
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/script.external_request',
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/calendar.events',
+  ...getEnabledScopes(parseEnabledDomains(process.env.GOOGLE_MCP_SCOPES)),
 ];
 
 const oauthProxy = isRemote
