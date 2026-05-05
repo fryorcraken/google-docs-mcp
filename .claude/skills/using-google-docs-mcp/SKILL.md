@@ -15,7 +15,7 @@ Practical guide for picking and calling tools from this MCP server. Assumes the 
 | Read a Google Doc as markdown for editing    | `readDocument` (`format: 'markdown'`)                                 |
 | Inspect a doc's raw structure (find indices) | `readDocument` (`format: 'json'`)                                     |
 | Replace entire doc content from markdown     | `replaceDocumentWithMarkdown`                                         |
-| Append markdown to a doc                     | `appendMarkdownToGoogleDoc`                                           |
+| Append markdown to a doc                     | `appendMarkdown`                                                      |
 | Insert plain text at a specific index        | `insertText`                                                          |
 | Insert a table                               | `insertTable` (empty) or `insertTableWithData` (pre-filled)           |
 | Replace a single row's contents              | `replaceTableRowData`                                                 |
@@ -29,7 +29,7 @@ Practical guide for picking and calling tools from this MCP server. Assumes the 
 | Append rows                                  | `appendRows`                                                          |
 | Format cells                                 | `formatCells`, `setCellBorders`, `setColumnWidths`                    |
 | Charts and conditional formatting            | `insertChart`, `addConditionalFormatting`                             |
-| Find Google Docs/files                       | `listGoogleDocs`, `searchGoogleDocs`, `searchDriveFiles`              |
+| Find Google Docs/files                       | `listDocuments`, `searchDocuments`, `searchDriveFiles`                |
 | Move/copy/create files                       | `moveFile`, `copyFile`, `createFolder`, `createDocument`              |
 | Read/send Gmail                              | `listMessages`, `getMessage`, `sendEmail`, `createDraft`, `sendDraft` |
 | Calendar events                              | `listEvents`, `createEvent`, `updateEvent`, `quickAddEvent`           |
@@ -72,7 +72,7 @@ Notes:
 ### Append to a Doc (preserves existing content)
 
 ```
-appendMarkdownToGoogleDoc(documentId, markdown, tabId=<optional>)
+appendMarkdown(documentId, markdown, tabId=<optional>)
   - addNewlineIfNeeded: true (default) inserts spacing before
   - firstHeadingAsTitle: false (default)
 ```
