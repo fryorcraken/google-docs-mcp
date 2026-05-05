@@ -43,6 +43,8 @@ Practical guide for picking and calling tools from this MCP server. Assumes the 
 
 Full catalog with parameter details: `docs/TOOLS.md` in the repo.
 
+> 📛 **Tool name vs file name.** Some tools have file names that differ from their registered names. The authoritative tool name is the `name:` field in `server.addTool({ ... })`, NOT the filename. Examples: `src/tools/drive/listGoogleDocs.ts` registers as `listDocuments`; `searchGoogleDocs.ts` as `searchDocuments`; `appendMarkdownToGoogleDoc.ts` as `appendMarkdown`. If a tool call returns "tool not found", grep for `name: '` in the source file to confirm — don't trust the filename.
+
 ## Mandatory: tab-aware parameters
 
 Google Docs tabs (introduced 2024) put content under `documentTab` instead of the legacy `body`. **Every position-taking tool accepts an optional `tabId`** parameter:
