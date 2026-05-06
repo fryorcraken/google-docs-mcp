@@ -388,6 +388,14 @@ In the MCP client, ask the agent to call `listDriveFiles` (or any harmless read 
 
 **`Authorization error: access_denied`** → user rejected, OR consent screen status is "Testing" and the user isn't in Test users (step 1.4).
 
+**`Token exchange rejected by Google with invalid_client`** at the END of the auth flow (browser shows "Authorization code received" but the CLI then errors) → the `client_id` is valid (browser-side worked) but Google rejected the `client_secret` at the token-exchange POST. Three fixes in order of likelihood:
+
+1. **Stale secret after a Reset.** Did you recently click "Reset secret" in Cloud Console? Re-download the JSON from https://console.cloud.google.com/apis/credentials → click your client (ID ending matches what was in the auth URL) → **Download JSON** → replace `credentials.json` at repo root → `chmod 600 credentials.json` → re-run auth.
+2. **Wrong client.** `client_id` and `client_secret` are from different OAuth clients (e.g., merged or hand-edited JSONs). Re-download from a single client.
+3. **OAuth client deleted.** The client_id in your auth URL doesn't exist anymore in Cloud Console — create a new one (Step 1.5) and download fresh.
+
+**`Token exchange rejected with invalid_grant`** → the authorization code expired (you took longer than ~10 min) or was already-used. Run the auth command again from a fresh shell.
+
 **`OAuth callback not received within 300s`** → user closed the browser tab without completing. Re-run the `auth` command.
 
 **`Permission denied for document` (HTTP 403)** at runtime → the authorized user doesn't have access to that doc, OR Workspace admin has restricted the API. The server falls back to Drive `files.export` for plain-text reads on 403.

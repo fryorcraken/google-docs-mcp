@@ -266,7 +266,15 @@ export function waitForOAuthCallback(
 
       if (authCode) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Authorization successful!</h1><p>You can close this tab.</p>');
+        // Honest wording: the browser-side handshake succeeded, but the
+        // CLI still has to exchange the code for tokens. That POST can
+        // fail (invalid_client / invalid_grant). Direct the user back
+        // to the terminal for the actual final status.
+        res.end(
+          '<h1>Authorization code received</h1>' +
+            '<p>You can close this tab — check the terminal where you ran ' +
+            '<code>auth</code> for the final status.</p>'
+        );
         clearTimeout(timeout);
         server.close();
         resolve(authCode);
@@ -299,7 +307,38 @@ async function authenticate(): Promise<OAuth2Client> {
   const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
   const code = await waitForOAuthCallback(server, port, state, AUTH_TIMEOUT_MS);
 
-  const { tokens } = await oAuth2Client.getToken(code);
+  let tokens;
+  try {
+    ({ tokens } = await oAuth2Client.getToken(code));
+  } catch (err: any) {
+    // The browser already showed "code received". Now Google has rejected
+    // the (client_id, client_secret) pair at the token-exchange POST.
+    // Surface the actionable diagnosis rather than the bare error.
+    const errMsg = err?.response?.data?.error ?? err?.message ?? '';
+    const errDescription = err?.response?.data?.error_description ?? err?.message ?? '';
+    if (typeof errMsg === 'string' && errMsg.includes('invalid_client')) {
+      const idTail = client_id.length > 12 ? client_id.slice(-12) : client_id;
+      throw new Error(
+        `Token exchange rejected by Google with invalid_client. ` +
+          `The browser-side authorization succeeded — meaning the client_id is valid — ` +
+          `but the client_secret does NOT match. Most likely: ` +
+          `(1) you reset the secret in Cloud Console but credentials.json or your env ` +
+          `vars still have the old one; (2) the OAuth client was deleted/recreated; ` +
+          `(3) client_id and client_secret were copied from different clients.\n` +
+          `Fix: re-download the OAuth JSON from ` +
+          `https://console.cloud.google.com/apis/credentials ` +
+          `(client ending in ${idTail}), replace credentials.json (chmod 600), and re-run auth.`
+      );
+    }
+    if (typeof errMsg === 'string' && errMsg.includes('invalid_grant')) {
+      throw new Error(
+        `Token exchange rejected with invalid_grant. The authorization code was ` +
+          `valid but is now expired or already-used. Re-run the auth command from a fresh shell.`
+      );
+    }
+    // Unknown OAuth error — preserve Google's wording.
+    throw new Error(`Token exchange failed: ${errMsg || errDescription || err}`);
+  }
   oAuth2Client.setCredentials(tokens);
   if (tokens.refresh_token) {
     await saveCredentials(oAuth2Client);
