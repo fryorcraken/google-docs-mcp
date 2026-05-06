@@ -63,12 +63,6 @@ export function register(server: FastMCP) {
       const res = await executeBatchUpdate(slides, args.presentationId, [request], 'add slide');
       const newId = res.replies?.[0]?.createSlide?.objectId ?? args.slideObjectId ?? null;
 
-      // Follow-up read of the new slide's placeholders. createSlide's reply only
-      // returns the slide objectId, but callers usually need to know which (if
-      // any) placeholder shapes the layout produced — without this they can't
-      // tell whether to call insertSlideText on an existing placeholder or
-      // createSlideShape to add their own. On custom themes this often comes
-      // back empty, which is itself the actionable signal.
       let placeholders: Array<{
         objectId: string;
         placeholderType: string | null;

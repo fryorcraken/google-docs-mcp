@@ -4,28 +4,8 @@ import { slides_v1 } from 'googleapis';
 import { getSlidesClient } from '../../clients.js';
 import { executeBatchUpdate } from './helpers.js';
 
-// Subset of the Slides API ShapeType enum that callers actually want to add to
-// a slide programmatically. The full enum has ~150 entries (mostly autoshapes);
-// expose the common ones and let callers pass any string for the rest via the
-// passthrough `shapeType` schema below.
-const COMMON_SHAPE_TYPES = [
-  'TEXT_BOX',
-  'RECTANGLE',
-  'ROUND_RECTANGLE',
-  'ELLIPSE',
-  'ARROW',
-  'TRIANGLE',
-  'RIGHT_TRIANGLE',
-  'DIAMOND',
-  'PARALLELOGRAM',
-  'TRAPEZOID',
-  'PENTAGON',
-  'HEXAGON',
-  'OCTAGON',
-  'STAR_5',
-  'CLOUD',
-  'SPEECH',
-] as const;
+const COMMON_SHAPE_TYPES =
+  'TEXT_BOX, RECTANGLE, ROUND_RECTANGLE, ELLIPSE, ARROW, TRIANGLE, RIGHT_TRIANGLE, DIAMOND, PARALLELOGRAM, TRAPEZOID, PENTAGON, HEXAGON, OCTAGON, STAR_5, CLOUD, SPEECH';
 
 export function register(server: FastMCP) {
   server.addTool({
@@ -38,10 +18,9 @@ export function register(server: FastMCP) {
       shapeType: z
         .string()
         .min(1)
-        .optional()
         .default('TEXT_BOX')
         .describe(
-          `Slides API ShapeType. Defaults to TEXT_BOX. Common values: ${COMMON_SHAPE_TYPES.join(', ')}. See https://developers.google.com/slides/api/reference/rest/v1/presentations.pages/shapeType for the full enum.`
+          `Slides API ShapeType. Defaults to TEXT_BOX. Common values: ${COMMON_SHAPE_TYPES}. See https://developers.google.com/slides/api/reference/rest/v1/presentations.pages/shapeType for the full enum.`
         ),
       position: z
         .object({
