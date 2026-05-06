@@ -18,3 +18,4 @@ DOGFOODING.md
 # Repomix bundles
 .repomix/
 repomix-output.*
+.claude/settings.local.json
