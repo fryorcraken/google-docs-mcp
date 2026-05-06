@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__google-docs__listSlides"
+    ]
+  }
+}
