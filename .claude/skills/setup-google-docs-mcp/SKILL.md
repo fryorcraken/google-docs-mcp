@@ -414,7 +414,7 @@ In the MCP client, ask the agent to call `listDriveFiles` (or any harmless read 
    ```
    (Or edit `~/.claude.json` directly under `mcpServers.google-docs.env.GOOGLE_CLIENT_SECRET`.)
 2. **For Path B (cloned repo) users:** download the new JSON from Cloud Console, replace `credentials.json` at repo root, `chmod 600` again.
-3. **Re-run `auth`** to refresh the token. Refresh tokens are tied to the client ID, not the secret, so existing tokens *may* still work — but re-auth is best practice after rotation.
+3. **Re-run `auth`** to refresh the token. Refresh tokens are tied to the client ID, not the secret, so existing tokens _may_ still work — but re-auth is best practice after rotation.
 
 **Treat as compromised any OAuth secret that has been pasted into LLM chat** → it's now in the model provider's logs. Rotate immediately, and prefer `credentials.json` or `claude mcp add -e` going forward so debugging conversations don't tempt you to paste it again.
 
