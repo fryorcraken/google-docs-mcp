@@ -10,6 +10,7 @@ import { register as registerReplaceAllText } from './replaceAllText.js';
 import { register as registerInsertSlideText } from './insertSlideText.js';
 import { register as registerApplySlideTextStyle } from './applySlideTextStyle.js';
 import { register as registerInsertSlideImage } from './insertSlideImage.js';
+import { register as registerCreateSlideShape } from './createSlideShape.js';
 
 export function registerSlidesTools(server: FastMCP) {
   registerCreatePresentation(server);
@@ -23,4 +24,5 @@ export function registerSlidesTools(server: FastMCP) {
   registerInsertSlideText(server);
   registerApplySlideTextStyle(server);
   registerInsertSlideImage(server);
+  registerCreateSlideShape(server);
 }

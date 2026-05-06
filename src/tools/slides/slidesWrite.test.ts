@@ -27,9 +27,14 @@ function captureExecute(register: (server: any) => void) {
   return execute;
 }
 
-function makeMockSlides(batchUpdateResponse: any) {
+function makeMockSlides(batchUpdateResponse: any, pageGetResponse?: any) {
   const batchUpdate = vi.fn().mockResolvedValue({ data: batchUpdateResponse });
-  return { client: { presentations: { batchUpdate } }, batchUpdate };
+  const pagesGet = vi.fn().mockResolvedValue({ data: pageGetResponse ?? { pageElements: [] } });
+  return {
+    client: { presentations: { batchUpdate, pages: { get: pagesGet } } },
+    batchUpdate,
+    pagesGet,
+  };
 }
 
 describe('addSlide', () => {
@@ -92,6 +97,160 @@ describe('addSlide', () => {
     const req = batchUpdate.mock.calls[0][0].requestBody.requests[0];
     expect(req.createSlide.objectId).toBe('my_custom_id');
     expect(JSON.parse(result).slideObjectId).toBe('my_custom_id');
+  });
+
+  it('reports placeholder objectIds and types when the layout produced any', async () => {
+    const { client, pagesGet } = makeMockSlides(
+      { replies: [{ createSlide: { objectId: 'slide_p' } }] },
+      {
+        pageElements: [
+          {
+            objectId: 'ph_title',
+            shape: {
+              placeholder: { type: 'TITLE', index: 0 },
+              text: { textElements: [{ textRun: { content: 'Click to add title' } }] },
+            },
+          },
+          {
+            objectId: 'ph_body',
+            shape: {
+              placeholder: { type: 'BODY', index: 1 },
+              text: { textElements: [{ textRun: { content: 'Click to add text' } }] },
+            },
+          },
+          // Non-placeholder element should be ignored
+          { objectId: 'img_decoration', image: {} },
+        ],
+      }
+    );
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const execute = captureExecute(registerAddSlide);
+    const result = await execute(
+      { presentationId: 'p1', predefinedLayout: 'TITLE_AND_BODY' },
+      { log: mockLog }
+    );
+    const parsed = JSON.parse(result);
+
+    expect(pagesGet).toHaveBeenCalledWith({ presentationId: 'p1', pageObjectId: 'slide_p' });
+    expect(parsed.placeholders).toEqual([
+      {
+        objectId: 'ph_title',
+        placeholderType: 'TITLE',
+        index: 0,
+        promptText: 'Click to add title',
+      },
+      { objectId: 'ph_body', placeholderType: 'BODY', index: 1, promptText: 'Click to add text' },
+    ]);
+    expect(parsed.placeholderHint).toMatch(/insertSlideText/);
+  });
+
+  it('returns empty placeholders array with createSlideShape hint on a custom-theme layout', async () => {
+    const { client } = makeMockSlides(
+      { replies: [{ createSlide: { objectId: 'slide_q' } }] },
+      { pageElements: [] }
+    );
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const execute = captureExecute(registerAddSlide);
+    const result = await execute(
+      { presentationId: 'p1', predefinedLayout: 'BLANK' },
+      { log: mockLog }
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.placeholders).toEqual([]);
+    expect(parsed.placeholderHint).toMatch(/createSlideShape/);
+  });
+
+  it('does not fail the tool if the post-create page fetch errors', async () => {
+    const { client, pagesGet } = makeMockSlides({
+      replies: [{ createSlide: { objectId: 'slide_r' } }],
+    });
+    pagesGet.mockRejectedValueOnce(new Error('transient 500'));
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const execute = captureExecute(registerAddSlide);
+    const result = await execute(
+      { presentationId: 'p1', predefinedLayout: 'TITLE_AND_BODY' },
+      { log: mockLog }
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.slideObjectId).toBe('slide_r');
+    expect(parsed.placeholders).toEqual([]);
+    expect(mockLog.warn).toHaveBeenCalled();
+  });
+});
+
+describe('createSlideShape', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('builds a createShape request with TEXT_BOX default and PT units', async () => {
+    const { client, batchUpdate } = makeMockSlides({
+      replies: [{ createShape: { objectId: 'shape_a' } }],
+    });
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    // Lazy import to avoid circular initialization with the top-of-file imports.
+    const { register } = await import('./createSlideShape.js');
+    const execute = captureExecute(register);
+
+    const result = await execute(
+      {
+        presentationId: 'p1',
+        slideObjectId: 'slide_a',
+        shapeType: 'TEXT_BOX',
+        position: { xPt: 50, yPt: 60 },
+        size: { widthPt: 400, heightPt: 200 },
+      },
+      { log: mockLog }
+    );
+
+    const parsed = JSON.parse(result);
+    expect(parsed.shapeObjectId).toBe('shape_a');
+    expect(parsed.slideObjectId).toBe('slide_a');
+    expect(parsed.shapeType).toBe('TEXT_BOX');
+
+    const req = batchUpdate.mock.calls[0][0].requestBody.requests[0].createShape;
+    expect(req.shapeType).toBe('TEXT_BOX');
+    expect(req.elementProperties.pageObjectId).toBe('slide_a');
+    expect(req.elementProperties.size).toEqual({
+      width: { magnitude: 400, unit: 'PT' },
+      height: { magnitude: 200, unit: 'PT' },
+    });
+    expect(req.elementProperties.transform).toEqual({
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 50,
+      translateY: 60,
+      unit: 'PT',
+    });
+  });
+
+  it('forwards a caller-supplied shapeObjectId', async () => {
+    const { client, batchUpdate } = makeMockSlides({
+      replies: [{ createShape: { objectId: 'my_shape' } }],
+    });
+    mockGetSlidesClient.mockResolvedValue(client as any);
+
+    const { register } = await import('./createSlideShape.js');
+    const execute = captureExecute(register);
+    await execute(
+      {
+        presentationId: 'p1',
+        slideObjectId: 'slide_a',
+        shapeType: 'RECTANGLE',
+        position: { xPt: 0, yPt: 0 },
+        size: { widthPt: 100, heightPt: 100 },
+        shapeObjectId: 'my_shape',
+      },
+      { log: mockLog }
+    );
+
+    const req = batchUpdate.mock.calls[0][0].requestBody.requests[0].createShape;
+    expect(req.objectId).toBe('my_shape');
+    expect(req.shapeType).toBe('RECTANGLE');
   });
 });
 

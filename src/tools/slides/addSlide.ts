@@ -22,7 +22,7 @@ export function register(server: FastMCP) {
   server.addTool({
     name: 'addSlide',
     description:
-      'Inserts a new slide into a Google Slides presentation. Returns the new slide objectId. Use one of the predefined layouts (TITLE_AND_BODY is the common default) or BLANK for an empty slide.',
+      'Inserts a new slide into a Google Slides presentation. Returns the new slide objectId AND any placeholder shapes the layout produced (with their objectId, placeholderType, and any inherited prompt text). On custom themes, predefined layouts often produce zero placeholders — when `placeholders` comes back empty, use `createSlideShape` to add a TEXT_BOX manually. Use one of the predefined layouts (TITLE_AND_BODY is the common default) or BLANK for an empty slide.',
     parameters: z.object({
       presentationId: z.string().min(1).describe('Presentation ID.'),
       insertionIndex: z
@@ -62,7 +62,59 @@ export function register(server: FastMCP) {
       };
       const res = await executeBatchUpdate(slides, args.presentationId, [request], 'add slide');
       const newId = res.replies?.[0]?.createSlide?.objectId ?? args.slideObjectId ?? null;
-      return JSON.stringify({ slideObjectId: newId, layout: args.predefinedLayout }, null, 2);
+
+      // Follow-up read of the new slide's placeholders. createSlide's reply only
+      // returns the slide objectId, but callers usually need to know which (if
+      // any) placeholder shapes the layout produced — without this they can't
+      // tell whether to call insertSlideText on an existing placeholder or
+      // createSlideShape to add their own. On custom themes this often comes
+      // back empty, which is itself the actionable signal.
+      let placeholders: Array<{
+        objectId: string;
+        placeholderType: string | null;
+        index: number | null;
+        promptText: string | null;
+      }> = [];
+      if (newId) {
+        try {
+          const pageRes = await slides.presentations.pages.get({
+            presentationId: args.presentationId,
+            pageObjectId: newId,
+          });
+          const elements = pageRes.data.pageElements ?? [];
+          for (const el of elements) {
+            if (!el.shape?.placeholder || !el.objectId) continue;
+            const promptText = (el.shape.text?.textElements ?? [])
+              .map((te) => te.textRun?.content ?? '')
+              .join('')
+              .trim();
+            placeholders.push({
+              objectId: el.objectId,
+              placeholderType: el.shape.placeholder.type ?? null,
+              index: el.shape.placeholder.index ?? null,
+              promptText: promptText || null,
+            });
+          }
+        } catch (err: any) {
+          log.warn(
+            `addSlide created slide ${newId} but failed to fetch placeholders: ${err?.message ?? err}`
+          );
+        }
+      }
+
+      return JSON.stringify(
+        {
+          slideObjectId: newId,
+          layout: args.predefinedLayout,
+          placeholders,
+          placeholderHint:
+            placeholders.length === 0
+              ? 'No placeholders produced (common on custom themes). Use createSlideShape to add a TEXT_BOX, then insertSlideText to populate it.'
+              : `Use insertSlideText with one of these placeholder objectIds to populate text.`,
+        },
+        null,
+        2
+      );
     },
   });
 }

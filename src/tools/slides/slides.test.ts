@@ -122,6 +122,49 @@ describe('readPresentation', () => {
     expect(JSON.parse(result)).toEqual({ title: 'X', slides: [] });
   });
 
+  it('filters slides by slideObjectIds when provided', async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        title: 'Big',
+        slides: [
+          { objectId: 'slide_1', pageElements: [] },
+          { objectId: 'slide_2', pageElements: [] },
+          { objectId: 'slide_3', pageElements: [] },
+        ],
+      },
+    });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
+
+    const execute = captureExecute(registerRead);
+    const result = await execute(
+      { presentationId: 'p1', format: 'json', slideObjectIds: ['slide_2', 'slide_3'] },
+      { log: mockLog }
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.slides.map((s: any) => s.objectId)).toEqual(['slide_2', 'slide_3']);
+  });
+
+  it('warns about (but does not error on) slideObjectIds that do not match', async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: {
+        title: 'X',
+        slides: [{ objectId: 'slide_1', pageElements: [] }],
+      },
+    });
+    mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
+
+    const execute = captureExecute(registerRead);
+    const result = await execute(
+      { presentationId: 'p1', format: 'json', slideObjectIds: ['slide_1', 'slide_missing'] },
+      { log: mockLog }
+    );
+    const parsed = JSON.parse(result);
+
+    expect(parsed.slides.map((s: any) => s.objectId)).toEqual(['slide_1']);
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('slide_missing'));
+  });
+
   it('handles presentations with no slides', async () => {
     const get = vi.fn().mockResolvedValue({ data: { title: 'Empty', slides: [] } });
     mockGetSlidesClient.mockResolvedValue({ presentations: { get } } as any);
