@@ -247,7 +247,7 @@ export function waitForOAuthCallback(
       // Validate state before any other processing to prevent CSRF.
       const returnedState = url.searchParams.get('state');
       if (returnedState !== expectedState) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end('<h1>Invalid state parameter</h1><p>Possible CSRF attack. Please try again.</p>');
         return;
       }
@@ -256,7 +256,7 @@ export function waitForOAuthCallback(
       const error = url.searchParams.get('error');
 
       if (error) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end('<h1>Authorization failed</h1><p>You can close this tab.</p>');
         clearTimeout(timeout);
         server.close();
@@ -265,14 +265,69 @@ export function waitForOAuthCallback(
       }
 
       if (authCode) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Authorization successful!</h1><p>You can close this tab.</p>');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        // Honest wording: the browser-side handshake succeeded, but the
+        // CLI still has to exchange the code for tokens. That POST can
+        // fail (invalid_client / invalid_grant). Direct the user back
+        // to the terminal for the actual final status.
+        res.end(
+          '<h1>Authorization code received</h1>' +
+            '<p>You can close this tab — check the terminal where you ran ' +
+            '<code>auth</code> for the final status.</p>'
+        );
         clearTimeout(timeout);
         server.close();
         resolve(authCode);
       }
     });
   });
+}
+
+/**
+ * Maps a googleapis OAuth `getToken` rejection into an Error with an
+ * actionable message. Exported for tests; production callers go through
+ * {@link authenticate}.
+ *
+ * googleapis throws `GaxiosError` with `err.response.data` set to the
+ * parsed JSON body of Google's token-endpoint response, which has shape
+ * `{ error: 'invalid_client' | 'invalid_grant' | ..., error_description?: string }`.
+ * We intercept the two failure modes users most commonly hit and surface
+ * the diagnosis the bare Google error doesn't include.
+ */
+export function translateTokenExchangeError(err: any, clientId: string): Error {
+  const errMsg: unknown = err?.response?.data?.error ?? err?.message ?? '';
+  const errDescription: unknown = err?.response?.data?.error_description ?? '';
+
+  if (typeof errMsg === 'string' && errMsg.includes('invalid_client')) {
+    const idTail = clientId.slice(-12);
+    const descSuffix =
+      typeof errDescription === 'string' && errDescription.length > 0
+        ? ` Google says: "${errDescription}".`
+        : '';
+    return new Error(
+      `Token exchange rejected by Google with invalid_client. ` +
+        `The browser-side authorization succeeded — meaning the client_id is valid — ` +
+        `but the client_secret does NOT match. Most likely: ` +
+        `(1) you reset the secret in Cloud Console but credentials.json or your env ` +
+        `vars still have the old one; (2) the OAuth client was deleted/recreated; ` +
+        `(3) client_id and client_secret were copied from different clients.${descSuffix}\n` +
+        `Fix: re-download the OAuth JSON from ` +
+        `https://console.cloud.google.com/apis/credentials ` +
+        `(client ending in ${idTail}), replace credentials.json (chmod 600), and re-run auth.`
+    );
+  }
+  if (typeof errMsg === 'string' && errMsg.includes('invalid_grant')) {
+    return new Error(
+      `Token exchange rejected with invalid_grant. The authorization code was ` +
+        `valid but is now expired or already-used. Re-run the auth command from a fresh shell.`
+    );
+  }
+  // Unknown OAuth error — preserve Google's wording.
+  const fallback =
+    (typeof errMsg === 'string' && errMsg) ||
+    (typeof errDescription === 'string' && errDescription) ||
+    String(err);
+  return new Error(`Token exchange failed: ${fallback}`);
 }
 
 async function authenticate(): Promise<OAuth2Client> {
@@ -299,7 +354,15 @@ async function authenticate(): Promise<OAuth2Client> {
   const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
   const code = await waitForOAuthCallback(server, port, state, AUTH_TIMEOUT_MS);
 
-  const { tokens } = await oAuth2Client.getToken(code);
+  let tokens;
+  try {
+    ({ tokens } = await oAuth2Client.getToken(code));
+  } catch (err: any) {
+    // The browser already showed "code received". Now Google has rejected
+    // the (client_id, client_secret) pair at the token-exchange POST.
+    // Surface the actionable diagnosis rather than the bare error.
+    throw translateTokenExchangeError(err, client_id);
+  }
   oAuth2Client.setCredentials(tokens);
   if (tokens.refresh_token) {
     await saveCredentials(oAuth2Client);
