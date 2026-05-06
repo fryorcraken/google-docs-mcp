@@ -33,7 +33,7 @@ export function register(server: FastMCP) {
   server.addTool({
     name: 'listSlides',
     description:
-      'Lists slides in a Google Slides presentation with their objectIds and a brief summary. Use the returned objectIds with slide-specific edit tools.',
+      'Lists slides in a Google Slides presentation with their objectIds and a brief summary. Use the returned objectIds with slide-specific edit tools. NOTE: `elementCount: 0` means the slide has no page elements (no placeholders, no shapes) — typical for a slide just created via addSlide on a custom theme. To put text on such a slide, call createSlideShape first to add a TEXT_BOX, then insertSlideText.',
     parameters: z.object({
       presentationId: z
         .string()

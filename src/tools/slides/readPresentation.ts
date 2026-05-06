@@ -25,6 +25,12 @@ export function register(server: FastMCP) {
         .describe(
           "Output format: 'text' (per-slide text dump) or 'json' (raw Slides API structure)."
         ),
+      slideObjectIds: z
+        .array(z.string().min(1))
+        .optional()
+        .describe(
+          'Optional filter: only include slides whose objectId is in this list. Use this on large decks (json output of a 30-slide deck can exceed 1 MB and get truncated). Get objectIds via listSlides.'
+        ),
       maxLength: z
         .number()
         .optional()
@@ -38,6 +44,22 @@ export function register(server: FastMCP) {
         const res = await slides.presentations.get({
           presentationId: args.presentationId,
         });
+
+        const slideFilter = args.slideObjectIds?.length ? new Set(args.slideObjectIds) : null;
+        if (slideFilter) {
+          const all = res.data.slides ?? [];
+          const filtered = all.filter((s) => s.objectId && slideFilter.has(s.objectId));
+          const matchedIds = new Set(
+            filtered.map((s) => s.objectId).filter((id): id is string => !!id)
+          );
+          const missing = [...slideFilter].filter((id) => !matchedIds.has(id));
+          if (missing.length > 0) {
+            log.warn(
+              `slideObjectIds filter: ${missing.length} id(s) not found: ${missing.join(', ')}`
+            );
+          }
+          res.data.slides = filtered;
+        }
 
         if (args.format === 'json') {
           const json = JSON.stringify(res.data, null, 2);
