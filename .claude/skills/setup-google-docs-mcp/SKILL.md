@@ -64,21 +64,73 @@ Left sidebar → **Audience** → **Test users** → **+ Add users** → add you
 Left sidebar → **Clients** → **+ Create Client**:
 
 - Application type: **Desktop app**
-- Note the **Client ID** and **Client Secret** from the confirmation popup.
+- The confirmation popup shows the **Client ID** and **Client Secret**, AND offers a **Download JSON** button.
 
-> 💡 **Don't panic if you close the popup.** The Client Secret can be re-downloaded later: **Clients** → click your client → **Download JSON** button.
+> 💡 **Click Download JSON.** This is the cleanest path: the file you download (named `client_secret_*.json`) can be moved to the repo root as `credentials.json` for Path B in Step 2. No copy-pasting secrets, no shell-history leak.
+
+> 💡 **Don't panic if you close the popup.** The Client Secret can always be re-downloaded later: https://console.cloud.google.com/apis/credentials → click your client → **Download JSON**. You can also reset it from there if compromised.
 
 ## Step 2 — Authorize
 
-Set the secrets in your **current shell** (the same shell that will run the auth command — env vars don't propagate across shells):
+Pick the path that matches your install. **Do not put secrets in shell `export` commands** — they end up in `~/.zsh_history` / `~/.bash_history` and are easy to leak when you ask an LLM to debug auth issues.
+
+### Path A: published package (`npx`) — recommended for most users
+
+Use `claude mcp add -e ...` (or your MCP client's equivalent secret-config UI). Claude Code stores secrets in `~/.claude.json` with mode `0600` — never in shell history, survives restarts.
+
+The snippets below assume **bash or zsh**. `read -s` is a bash/zsh extension; if you're on POSIX `sh` / `dash` / Alpine BusyBox, run the commands under `bash -c '...'` or use `stty -echo; read VAR; stty echo` instead. Don't follow these verbatim in `sh` — your secret will echo to the terminal and end up in scrollback.
 
 ```bash
-export GOOGLE_CLIENT_ID="<from-step-1.5>"
-export GOOGLE_CLIENT_SECRET="<from-step-1.5>"
+# `read -s` keeps the secret out of your terminal display.
+# (If you instead type `claude mcp add ... -e SECRET=...` directly,
+# add `HISTCONTROL=ignorespace` in bash or `setopt hist_ignore_space`
+# in zsh first AND prefix the command with a space — both are off
+# by default; verify with `echo $HISTCONTROL` / `setopt | grep ignore_space`.)
+read -s -p "Client ID: " GOOGLE_CLIENT_ID; echo
+read -s -p "Client Secret: " GOOGLE_CLIENT_SECRET; echo
+
+claude mcp add google-docs --scope user \
+  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+  -- npx -y @fryorcraken/google-docs-mcp
+
+# One-time auth flow. Reuses the same vars from your current shell:
 npx -y @fryorcraken/google-docs-mcp auth
+
+# Wipe the vars from the current shell:
+unset GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 ```
 
-What happens:
+After that the secrets live only in `~/.claude.json`. You don't need them again unless you re-auth (refresh tokens don't expire unless revoked).
+
+### Path B: persistent clone / local build — **simplest** if you have a clone
+
+Drop the OAuth client JSON at the repo root as `credentials.json`. Both the auth flow and the running server read it from there: `src/auth.ts` resolves the path as `<package-root>/credentials.json` via `path.resolve(__dirname, '..')`, **not** the CWD that spawned the server. This means `claude mcp add` configs run from random working directories still find the file.
+
+> ⚠️ **Path B requires a persistent install location.** A cloned repo or `npm i -g @fryorcraken/google-docs-mcp` works. **`npx` does NOT** — its package cache lives at `~/.npm/_npx/<hash>/...` and is wiped on cache eviction, taking your `credentials.json` with it. For npx, use Path A.
+
+```bash
+# After step 1.5, you downloaded a client_secret_*.json from Cloud Console.
+# Move it to the repo root with the canonical name and lock down perms:
+mv ~/Downloads/client_secret_*.json /path/to/google-docs-mcp/credentials.json
+chmod 600 /path/to/google-docs-mcp/credentials.json    # Cloud Console downloads are 0644
+
+cd /path/to/google-docs-mcp
+npm install && npm run build
+
+# Auth (no env vars — auth.ts reads credentials.json from package root):
+node dist/index.js auth
+
+# Register with Claude Code (no -e flags needed — credentials.json is
+# already at package root and gets resolved regardless of CWD):
+claude mcp add google-docs-local -- node /abs/path/to/google-docs-mcp/dist/index.js
+```
+
+`credentials.json` is gitignored — no risk of committing it. Survives shell restarts. Never appears in shell history. No re-pasting secrets to LLMs when debugging.
+
+> ⚠️ **Env-var shadowing footgun.** `loadClientSecrets` checks env vars **first**, then falls back to `credentials.json`. If you ever ran `export GOOGLE_CLIENT_ID=...` / `export GOOGLE_CLIENT_SECRET=...` in the parent shell (e.g., before this PR's skill update) AND then launch your MCP client from that same shell, the spawned server inherits those vars and **silently uses the OLD client** — `credentials.json` is never read. Run `unset GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET` (and check `printenv | grep GOOGLE_`) before launching Claude Code / Claude Desktop / Cursor to avoid this.
+
+### What the `auth` flow does
 
 1. Spins up a localhost HTTP listener on a random port for the OAuth callback.
 2. Opens your browser to the Google authorization URL (or prints it on stderr).
@@ -105,17 +157,34 @@ If you only need a subset of Google services — say, just Docs and Drive — se
 
 Valid domains (case-insensitive): `docs`, `drive`, `sheets`, `slides`, `gmail`, `calendar`.
 
+For Path A (npx) — pass it as another `-e` flag, and prefix the auth invocation:
+
 ```bash
-export GOOGLE_CLIENT_ID="..."
-export GOOGLE_CLIENT_SECRET="..."
-export GOOGLE_MCP_SCOPES="docs,drive"
-npx -y @fryorcraken/google-docs-mcp auth      # auth requests only docs+drive scopes
-# Then add to your MCP client with the same env var:
+read -s -p "Client ID: " GOOGLE_CLIENT_ID
+read -s -p "Client Secret: " GOOGLE_CLIENT_SECRET
+
+GOOGLE_MCP_SCOPES="docs,drive" \
+GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+npx -y @fryorcraken/google-docs-mcp auth     # requests only docs+drive scopes
+
 claude mcp add google-docs --scope user \
-  -e GOOGLE_CLIENT_ID="..." \
-  -e GOOGLE_CLIENT_SECRET="..." \
   -e GOOGLE_MCP_SCOPES="docs,drive" \
+  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
   -- npx -y @fryorcraken/google-docs-mcp
+
+unset GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+```
+
+For Path B (cloned repo) — `credentials.json` covers the secrets, you only set the scope env var:
+
+```bash
+GOOGLE_MCP_SCOPES="docs,drive" node dist/index.js auth
+
+claude mcp add google-docs-local --scope user \
+  -e GOOGLE_MCP_SCOPES="docs,drive" \
+  -- node /abs/path/to/google-docs-mcp/dist/index.js
 ```
 
 What this changes:
@@ -129,12 +198,27 @@ Note on the Apps Script scope (`script.external_request`): it's bundled under `d
 
 ### Multi-account (one token per project)
 
-Set `GOOGLE_MCP_PROFILE=<name>` before the `auth` command and the same value when running the server. Tokens go to `~/.config/google-docs-mcp/<profile>/token.json`. Profile names: alphanumerics, hyphens, underscores only.
+Set `GOOGLE_MCP_PROFILE=<name>` for both the `auth` command AND the running server. Tokens go to `~/.config/google-docs-mcp/<profile>/token.json`. Profile names: alphanumerics, hyphens, underscores only.
+
+For Path A (npx), pass it as another `-e` flag to `claude mcp add` and prefix the auth command:
 
 ```bash
-GOOGLE_MCP_PROFILE=work \
-GOOGLE_CLIENT_ID="..." GOOGLE_CLIENT_SECRET="..." \
-npx -y @fryorcraken/google-docs-mcp auth
+GOOGLE_MCP_PROFILE=work npx -y @fryorcraken/google-docs-mcp auth   # uses ~/.claude.json secrets
+
+claude mcp add google-docs-work --scope user \
+  -e GOOGLE_MCP_PROFILE=work \
+  -e GOOGLE_CLIENT_ID="..." -e GOOGLE_CLIENT_SECRET="..." \
+  -- npx -y @fryorcraken/google-docs-mcp
+```
+
+For Path B (cloned repo), pass it as an env override on auth and as another `-e` on the `claude mcp add`:
+
+```bash
+GOOGLE_MCP_PROFILE=work node dist/index.js auth                    # uses credentials.json
+
+claude mcp add google-docs-work-local --scope user \
+  -e GOOGLE_MCP_PROFILE=work \
+  -- node /abs/path/to/google-docs-mcp/dist/index.js
 ```
 
 ### Service account (no browser flow)
@@ -143,25 +227,54 @@ Cloud Run / server / non-interactive automation: skip the browser flow. Set `SER
 
 ## Step 3 — Register with the MCP client
 
+> If you used **Path A (npx)** in Step 2, the `claude mcp add` command above already registered the server. You're done — skip to Verifying it works. The sections below are for users who skipped Path A or use a different MCP client.
+
 ### Claude Code (CLI)
 
-Likely the most common surface for someone working on this repo:
+#### If you used Path B (cloned repo, `credentials.json` at repo root)
+
+No `-e` flags needed — `credentials.json` at the package root is found regardless of CWD:
 
 ```bash
 # Project-local (only this directory)
-claude mcp add google-docs \
-  -e GOOGLE_CLIENT_ID="..." -e GOOGLE_CLIENT_SECRET="..." \
-  -- npx -y @fryorcraken/google-docs-mcp
+claude mcp add google-docs-local \
+  -- node /abs/path/to/google-docs-mcp/dist/index.js
 
 # Global (all projects, --scope user)
+claude mcp add google-docs-local --scope user \
+  -- node /abs/path/to/google-docs-mcp/dist/index.js
+```
+
+#### Manual `claude mcp add` for npx (if you skipped Path A)
+
+```bash
+read -s -p "Client ID: " GOOGLE_CLIENT_ID
+read -s -p "Client Secret: " GOOGLE_CLIENT_SECRET
 claude mcp add google-docs --scope user \
-  -e GOOGLE_CLIENT_ID="..." -e GOOGLE_CLIENT_SECRET="..." \
+  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
   -- npx -y @fryorcraken/google-docs-mcp
+unset GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
 ```
 
 `claude mcp list` lists all configured servers. No restart required between adds.
 
 ### Claude Desktop / Cursor / Windsurf
+
+**Cloned-repo users (no env block needed — `credentials.json` covers it):**
+
+```json
+{
+  "mcpServers": {
+    "google-docs": {
+      "command": "node",
+      "args": ["/abs/path/to/google-docs-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+**npx users (secrets pasted directly into the JSON config — verify the file is mode `0600`. macOS Claude Desktop config defaults to `0644`; run `chmod 600 ~/Library/Application\ Support/Claude/claude_desktop_config.json` after editing):**
 
 ```json
 {
@@ -178,7 +291,7 @@ claude mcp add google-docs --scope user \
 }
 ```
 
-Add `"GOOGLE_MCP_PROFILE": "<name>"` to `env` for multi-account.
+Add `"GOOGLE_MCP_PROFILE": "<name>"` to `env` for multi-account, or `"GOOGLE_MCP_SCOPES": "docs,drive"` for least-privilege.
 
 Config file paths:
 
@@ -283,7 +396,27 @@ In the MCP client, ask the agent to call `listDriveFiles` (or any harmless read 
 
 **`Saved token is missing required scopes` warning at startup** → you upgraded the server and it added new scopes (most recently `presentations` for Slides support). Re-run the `auth` command to refresh the token.
 
-**`credentials.json` security note** → if you use the legacy `credentials.json` fallback (file in project root, no env vars), that file contains your OAuth secret. Confirm `.gitignore` covers it (the repo's `.gitignore` already covers `credentials.json`) before committing.
+**`credentials.json` security note** → that file contains your OAuth secret. The repo's `.gitignore` already covers `credentials.json`, so `git add` won't pick it up. Don't share the file or its contents (including via LLM chat).
+
+**Where is my OAuth client?** → https://console.cloud.google.com/apis/credentials → click your client. From here you can re-download the JSON (the "Download JSON" button on the client detail page) or rotate the secret if compromised.
+
+**Rotate a leaked secret** → Cloud Console → APIs & Services → Credentials → click your client → **Reset secret**. The old secret is invalidated immediately. After rotating:
+
+1. **For Path A (npx) users:** `claude mcp add` errors when re-adding an existing name. Remove and re-add:
+   ```bash
+   claude mcp remove google-docs
+   read -s -p "New Client Secret: " GOOGLE_CLIENT_SECRET; echo
+   claude mcp add google-docs --scope user \
+     -e GOOGLE_CLIENT_ID="<unchanged>" \
+     -e GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+     -- npx -y @fryorcraken/google-docs-mcp
+   unset GOOGLE_CLIENT_SECRET
+   ```
+   (Or edit `~/.claude.json` directly under `mcpServers.google-docs.env.GOOGLE_CLIENT_SECRET`.)
+2. **For Path B (cloned repo) users:** download the new JSON from Cloud Console, replace `credentials.json` at repo root, `chmod 600` again.
+3. **Re-run `auth`** to refresh the token. Refresh tokens are tied to the client ID, not the secret, so existing tokens _may_ still work — but re-auth is best practice after rotation.
+
+**Treat as compromised any OAuth secret that has been pasted into LLM chat** → it's now in the model provider's logs. Rotate immediately, and prefer `credentials.json` or `claude mcp add -e` going forward so debugging conversations don't tempt you to paste it again.
 
 **Server hangs / "appears empty" on a Google Doc with tabs** → fixed in v0.2.0+ (issue #1). Upgrade if on an older fork.
 

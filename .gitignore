@@ -6,6 +6,9 @@ dist/
 credentials.json
 token.json
 
+# Dogfooding notes (local only)
+DOGFOODING.md
+
 # Log files
 *.log
 
