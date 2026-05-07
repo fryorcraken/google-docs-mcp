@@ -1,6 +1,6 @@
 ---
 name: using-google-docs-mcp
-description: Pick the right tool from @fryorcraken/google-docs-mcp and call it with the right parameters. Covers Google Docs (read/write/format/tabs/comments/markdown sync), Google Sheets (read/write/format/tables/charts), Google Drive (search/create/move/copy), Gmail (read/send/draft), Google Calendar (read/CRUD events). Use when the user asks Claude to "read a Google Doc", "update a sheet", "send an email", "find files in Drive", "schedule a meeting", or any operation against Google Workspace via this MCP server. Includes the tab-aware parameter pattern and known limitations.
+description: Pick the right tool from @fryorcraken/google-docs-mcp for Google Workspace operations (Docs, Sheets, Drive, Gmail, Calendar). Use for "read a Google Doc", "update a sheet", "send an email", "find files in Drive", "schedule a meeting".
 ---
 
 # Using @fryorcraken/google-docs-mcp

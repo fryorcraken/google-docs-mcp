@@ -1,6 +1,6 @@
 ---
 name: setup-google-docs-mcp
-description: Walk a user through installing the @fryorcraken/google-docs-mcp server, creating Google Cloud OAuth credentials, completing the auth flow, and registering the server in Claude Code, Claude Desktop, Cursor, Windsurf, or VS Code. Use when the user says "set up google-docs-mcp", "install google-docs-mcp", "I need to connect Claude to Google Docs/Sheets/Drive/Slides/Gmail/Calendar", or hits OAuth errors during install.
+description: Walk through installing @fryorcraken/google-docs-mcp, OAuth setup, and registering the server in Claude Code/Desktop, Cursor, Windsurf, or VS Code. Use for "set up google-docs-mcp" or OAuth errors during install.
 ---
 
 # Setting up @fryorcraken/google-docs-mcp
