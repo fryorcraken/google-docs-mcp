@@ -80,6 +80,21 @@ Mechanism: `src/lazyMode.ts:startLazyCapture` replaces `server.addTool` with a f
 
 Tradeoff: one extra round-trip per new capability the agent uses (search → describe → call), versus a much smaller passive context. Workflows that touch many tools may prefer eager mode.
 
+### Edit-in-place workflow
+
+Tools for editing existing Google Docs without rewriting them:
+
+- **Insert at a position**: `insertText`, `insertTable`, `insertImageFromUrl`/`insertLocalImage`, `insertPageBreak`, `insertSectionBreak`, `insertDateChip`, `insertPerson`, `insertRichLink`
+- **Delete or replace by range**: `deleteRange`, `findAndReplace` (text only), `modifyText` (text + restyle)
+- **Replace by range _with markdown formatting_**: `replaceRangeWithMarkdown` — takes either `{startIndex, endIndex}` or `{textToFind, matchInstance}`. Use this when the replacement needs headings/lists/links/etc.
+- **Restyle a range**: `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`
+- **Whole-doc markdown rewrite**: `replaceDocumentWithMarkdown`
+- **Append**: `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`
+- **Tables**: `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`, `cloneTable`
+- **Comments**: `listComments`, `addComment`, `replyToComment`, `resolveComment`, `deleteComment`, `getComment`
+
+Canonical agent workflow for "edit this section": call `readDocument` with `format='json'` to find indices (or `format='markdown'` for human-readable inspection), then either compose the inserts/deletes manually or call `replaceRangeWithMarkdown` for a one-shot formatted replacement.
+
 ### Helper modules
 
 - `src/googleDocsApiHelpers.ts` — batch update execution (with auto-splitting via `executeBatchUpdateWithSplitting` for >50 requests), text-range finding, style request builders, table helpers, tab resolution.

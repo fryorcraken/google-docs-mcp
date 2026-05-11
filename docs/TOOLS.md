@@ -12,6 +12,24 @@ By default, every session loads ~32k tokens of tool definitions just to advertis
 
 Tradeoff: one extra round-trip per new capability the agent uses (search → describe → call), versus a much smaller passive context. Agents that touch many tools per session may prefer eager mode. Lazy mode is opt-in; default behavior is unchanged.
 
+## Edit-in-Place Verb Map
+
+For agents asking "how do I edit this Google Doc in place?":
+
+| Action                                       | Tool(s)                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Insert text/structure at an index            | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*` |
+| Delete a range                               | `deleteRange`                                                                        |
+| Find and replace text (no formatting)        | `findAndReplace`, `modifyText`                                                       |
+| **Replace a range with markdown formatting** | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                     |
+| Restyle a range                              | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                        |
+| Replace whole doc with markdown              | `replaceDocumentWithMarkdown`                                                        |
+| Append                                       | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                     |
+| Edit table contents                          | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`      |
+| Manage comments                              | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                    |
+
+Canonical workflow: `readDocument` with `format='json'` → find indices → call the right verb. Use `format='markdown'` first if you need to inspect the content human-readably.
+
 ## Tool Categories
 
 | Category      | Count | Examples                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -102,6 +120,23 @@ This is **bold** text with a [link](https://example.com).
 
 More content with _italic_ and ~~strikethrough~~.
 ```
+
+#### `replaceRangeWithMarkdown`
+
+Replaces a character range with markdown-formatted content. Use this for in-place section edits (heading-scoped, paragraph-scoped, or arbitrary range) without rewriting the entire document.
+
+**Parameters:**
+
+- `documentId`: The document ID
+- `markdown`: The markdown content to insert in place of the range
+- Either `startIndex` + `endIndex` (1-based, half-open `[start, end)`) **or** `textToFind` + optional `matchInstance` (1-based, defaults to 1). Provide exactly one of the two targeting modes.
+- `tabId` (optional): Target a specific tab. Auto-detects on tabbed docs if omitted.
+- `firstHeadingAsTitle` (optional, default: false): If true, the first `# H1` is styled as a Google Docs **Title** instead of Heading 1.
+
+**Notes:**
+
+- Paragraph properties (heading level, list membership) at `startIndex` are inherited by the inserted content. For clean structural changes (e.g. heading → normal text), prefer `replaceDocumentWithMarkdown`.
+- Use `readDocument` with `format='json'` to find indices, or `format='markdown'` to inspect content before targeting.
 
 #### `appendMarkdownToGoogleDoc`
 
