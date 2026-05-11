@@ -23,7 +23,7 @@ npm start                                 # run built server (stdio mode)
 npm start auth                            # interactive OAuth flow → token
 ```
 
-CI runs `npm test` and `npm run format:check` against Node 20/22/24/25 on every PR. Push directly to `main` is blocked — work on a branch, open a PR, get CI green, squash-merge.
+CI runs `npm test` and `npm run format:check` against Node 20/22/24/25 on every PR. Commits land directly on `main` — push when local tests and `format:check` pass; CI verifies post-push.
 
 ## Architecture
 
