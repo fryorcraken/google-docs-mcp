@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hard fork of [`a-bonus/google-docs-mcp`](https://github.com/a-bonus/google-docs-mcp), maintained as `@fryorcraken/google-docs-mcp`. Dual-licensed MIT or Apache-2.0 (see `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE`).
 
-This is a [FastMCP](https://github.com/punkpeye/fastmcp) server exposing ~96 tools for Google Docs, Sheets, Drive, Gmail, and Calendar over the Model Context Protocol. It runs in two modes: stdio (default, used by Claude Desktop / Cursor / Windsurf) and `httpStream` (remote, for Cloud Run with MCP OAuth 2.1).
+This is a [FastMCP](https://github.com/punkpeye/fastmcp) server exposing ~128 tools for Google Docs, Sheets, Slides, Drive, Gmail, and Calendar over the Model Context Protocol. It runs in two modes: stdio (default, used by Claude Desktop / Cursor / Windsurf) and `httpStream` (remote, for Cloud Run with MCP OAuth 2.1).
 
 ## Common commands
 
@@ -67,6 +67,18 @@ Compose `OptionalTabIdParameter` from `src/types.ts` into the tool's Zod schema 
 Each tool lives in `src/tools/<domain>/<toolName>.ts` and exports a `register(server: FastMCP)` function that calls `server.addTool({ name, description, parameters, execute })`. Domain index files (`src/tools/<domain>/index.ts`) wire up registration; `src/tools/index.ts` is the top-level router.
 
 `src/cachedToolsList.ts` caches the tool listing in stdio mode so `tools/list` requests don't pay the Zod-to-JSONSchema conversion cost on every call.
+
+### Lazy tool discovery (`MCP_LAZY_TOOLS=1`)
+
+By default, all ~128 tools are advertised in `tools/list` — that's ~32k tokens of passive context shipped to the model on every session, paid even when the agent never touches the MCP. `MCP_LAZY_TOOLS=1` flips the server into lazy mode: `tools/list` exposes only **three meta-tools** (~500 tokens), and the real tools are reachable via routing:
+
+- `searchTools({query?, domain?, limit?})` — find tools by keyword / domain. Domains: `docs`, `sheets`, `drive`, `gmail`, `calendar`, `slides`, `utils`.
+- `describeTool({name})` — fetch full description + JSON schema for one tool.
+- `callTool({name, args})` — invoke any tool by name; args are validated against the tool's Zod schema before execution.
+
+Mechanism: `src/lazyMode.ts:startLazyCapture` replaces `server.addTool` with a function that pushes captured tool definitions into an in-memory registry instead of registering them with FastMCP. After all domain `register()` calls finish, `finalizeLazyMode` adds the 3 meta-tools through the unwrapped addTool so they are visible. The remote-mode auth wrapper (`wrapServerForRemote`) runs _before_ the lazy capture, so the 3 meta-tools still get auth enforcement; the inner tools' Google clients come from the same `requestClients` AsyncLocalStorage that wraps the meta-tool execution.
+
+Tradeoff: one extra round-trip per new capability the agent uses (search → describe → call), versus a much smaller passive context. Workflows that touch many tools may prefer eager mode.
 
 ### Helper modules
 

@@ -2,6 +2,7 @@
 import type { FastMCP } from 'fastmcp';
 import { ALL_DOMAINS, parseEnabledDomains } from '../scopeConfig.js';
 import { logger } from '../logger.js';
+import { setCurrentDomain } from '../lazyMode.js';
 
 /**
  * Registers tools for every domain enabled by `GOOGLE_MCP_SCOPES` (or
@@ -14,8 +15,13 @@ import { logger } from '../logger.js';
 export function registerAllTools(server: FastMCP) {
   const enabled = parseEnabledDomains(process.env.GOOGLE_MCP_SCOPES);
   for (const domain of enabled) {
+    // setCurrentDomain is a no-op when lazy mode is off; when on, it
+    // tags every captured tool with its domain so searchTools can
+    // filter by it.
+    setCurrentDomain(domain);
     ALL_DOMAINS[domain].register(server);
   }
+  setCurrentDomain(undefined);
   if (process.env.GOOGLE_MCP_SCOPES?.trim()) {
     logger.info(`Tool registration limited via GOOGLE_MCP_SCOPES=${enabled.join(',')}`);
   }

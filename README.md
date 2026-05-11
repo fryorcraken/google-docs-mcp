@@ -319,18 +319,20 @@ Visit the server root URL (`/`) for setup instructions and a ready-to-copy clien
 
 ### Environment Variables
 
-| Variable               | Description                                                              |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `MCP_TRANSPORT`        | Set to `httpStream` to enable remote mode (default: `stdio`)             |
-| `BASE_URL`             | Public URL of the deployed server (required for OAuth redirects)         |
-| `GOOGLE_CLIENT_ID`     | OAuth client ID (Web application type)                                   |
-| `GOOGLE_CLIENT_SECRET` | OAuth client secret                                                      |
-| `ALLOWED_DOMAINS`      | Comma-separated list of allowed Google Workspace domains (optional)      |
-| `PORT`                 | HTTP port (default: `8080`)                                              |
-| `TOKEN_STORE`          | Set to `firestore` for persistent token storage (default: in-memory)     |
-| `JWT_SIGNING_KEY`      | Fixed signing key so tokens survive restarts (auto-generated if not set) |
-| `REFRESH_TOKEN_TTL`    | Refresh token lifetime in seconds (default: `2592000` / 30 days)         |
-| `GCLOUD_PROJECT`       | GCP project ID for Firestore (required when `TOKEN_STORE=firestore`)     |
+| Variable               | Description                                                                                                                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_TRANSPORT`        | Set to `httpStream` to enable remote mode (default: `stdio`)                                                                                                                                                          |
+| `BASE_URL`             | Public URL of the deployed server (required for OAuth redirects)                                                                                                                                                      |
+| `GOOGLE_CLIENT_ID`     | OAuth client ID (Web application type)                                                                                                                                                                                |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret                                                                                                                                                                                                   |
+| `ALLOWED_DOMAINS`      | Comma-separated list of allowed Google Workspace domains (optional)                                                                                                                                                   |
+| `PORT`                 | HTTP port (default: `8080`)                                                                                                                                                                                           |
+| `TOKEN_STORE`          | Set to `firestore` for persistent token storage (default: in-memory)                                                                                                                                                  |
+| `JWT_SIGNING_KEY`      | Fixed signing key so tokens survive restarts (auto-generated if not set)                                                                                                                                              |
+| `REFRESH_TOKEN_TTL`    | Refresh token lifetime in seconds (default: `2592000` / 30 days)                                                                                                                                                      |
+| `GCLOUD_PROJECT`       | GCP project ID for Firestore (required when `TOKEN_STORE=firestore`)                                                                                                                                                  |
+| `GOOGLE_MCP_SCOPES`    | Comma-separated subset of `docs,sheets,slides,drive,gmail,calendar` to limit auth scopes and registered tools (default: all)                                                                                          |
+| `MCP_LAZY_TOOLS`       | Set to `1` to expose only 3 meta-tools (`searchTools`/`describeTool`/`callTool`) at `tools/list`. Drops the per-session tool catalog from ~32k tokens to ~500. Tools are still callable via `callTool({name, args})`. |
 
 ### Setup
 

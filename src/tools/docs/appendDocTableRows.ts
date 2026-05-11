@@ -9,9 +9,9 @@ import { replaceTableRowData as replaceTableRowDataInternal } from './tableRowDa
 
 export function register(server: FastMCP) {
   server.addTool({
-    name: 'appendTableRows',
+    name: 'appendDocTableRows',
     description:
-      'Appends one or more plain-text rows to the end of an existing Google Docs table while preserving the table structure.',
+      'Appends one or more plain-text rows to the end of an existing Google Docs table while preserving the table structure. (For Google Sheets tables, see the equivalent Sheets tool.)',
     parameters: DocumentIdParameter.extend({
       tableId: z
         .string()

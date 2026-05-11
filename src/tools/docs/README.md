@@ -38,7 +38,7 @@ docs/
 | `getTableStructure`     | Returns row/column/cell structure for a table                                                                |
 | `findSectionsByHeading` | Finds heading sections and the table that follows them                                                       |
 | `replaceTableRowData`   | Replaces the contents of an existing table row                                                               |
-| `appendTableRows`       | Appends rows to an existing table without replacing the whole document                                       |
+| `appendDocTableRows`    | Appends rows to an existing table without replacing the whole document                                       |
 | `deleteTableRows`       | Deletes one or more rows from an existing table                                                              |
 | `insertPageBreak`       | Inserts a page break at a character index                                                                    |
 | `insertSectionBreak`    | Inserts a section break (NEXT_PAGE or CONTINUOUS) — required before changing page style                      |

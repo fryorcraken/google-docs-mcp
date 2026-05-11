@@ -1,6 +1,16 @@
 # Google Docs MCP Server
 
-FastMCP server with 94 tools for Google Docs, Sheets, Drive, Gmail, and Calendar.
+FastMCP server with ~128 tools for Google Docs, Sheets, Slides, Drive, Gmail, and Calendar.
+
+## Context Budget — Lazy Mode
+
+By default, every session loads ~32k tokens of tool definitions just to advertise the catalog. Set `MCP_LAZY_TOOLS=1` to drop that to ~500 tokens — the server then exposes only three meta-tools:
+
+- **`searchTools({query?, domain?, limit?})`** — find tools by keyword or domain (`docs`, `sheets`, `drive`, `gmail`, `calendar`, `slides`, `utils`). Returns `name`, `domain`, and a one-line description per match.
+- **`describeTool({name})`** — full description + JSON schema for one tool.
+- **`callTool({name, args})`** — invoke a tool. Args are Zod-validated before the tool runs.
+
+Tradeoff: one extra round-trip per new capability the agent uses (search → describe → call), versus a much smaller passive context. Agents that touch many tools per session may prefer eager mode. Lazy mode is opt-in; default behavior is unchanged.
 
 ## Tool Categories
 

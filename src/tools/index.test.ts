@@ -32,7 +32,11 @@ describe('registerAllTools — conditional registration', () => {
     return { toolNames: addedTools };
   }
 
-  it('registers tools from every domain when env var is unset', async () => {
+  // Timeout is bumped because this test imports every tool module
+  // (~128 of them) via vi.resetModules + dynamic import, and under
+  // contention with other parallel test files the import phase can
+  // run 5-10s on cold caches.
+  it('registers tools from every domain when env var is unset', { timeout: 30_000 }, async () => {
     delete process.env.GOOGLE_MCP_SCOPES;
     const { toolNames } = await loadAndRegister();
 
@@ -46,19 +50,23 @@ describe('registerAllTools — conditional registration', () => {
     expect(toolNames).toContain('listEvents'); // calendar
   });
 
-  it('registers only docs+drive tools when GOOGLE_MCP_SCOPES=docs,drive', async () => {
-    process.env.GOOGLE_MCP_SCOPES = 'docs,drive';
-    const { toolNames } = await loadAndRegister();
+  it(
+    'registers only docs+drive tools when GOOGLE_MCP_SCOPES=docs,drive',
+    { timeout: 30_000 },
+    async () => {
+      process.env.GOOGLE_MCP_SCOPES = 'docs,drive';
+      const { toolNames } = await loadAndRegister();
 
-    expect(toolNames).toContain('readDocument'); // docs — included
-    expect(toolNames).toContain('listDriveFiles'); // drive — included
-    expect(toolNames).not.toContain('readSpreadsheet'); // sheets — excluded
-    expect(toolNames).not.toContain('createPresentation'); // slides — excluded
-    expect(toolNames).not.toContain('listMessages'); // gmail — excluded
-    expect(toolNames).not.toContain('listEvents'); // calendar — excluded
-  });
+      expect(toolNames).toContain('readDocument'); // docs — included
+      expect(toolNames).toContain('listDriveFiles'); // drive — included
+      expect(toolNames).not.toContain('readSpreadsheet'); // sheets — excluded
+      expect(toolNames).not.toContain('createPresentation'); // slides — excluded
+      expect(toolNames).not.toContain('listMessages'); // gmail — excluded
+      expect(toolNames).not.toContain('listEvents'); // calendar — excluded
+    }
+  );
 
-  it('registers only slides tools when GOOGLE_MCP_SCOPES=slides', async () => {
+  it('registers only slides tools when GOOGLE_MCP_SCOPES=slides', { timeout: 30_000 }, async () => {
     process.env.GOOGLE_MCP_SCOPES = 'slides';
     const { toolNames } = await loadAndRegister();
 

@@ -27,7 +27,7 @@ import { register as listDocumentTables } from './listDocumentTables.js';
 import { register as getTableStructure } from './getTableStructure.js';
 import { register as findSectionsByHeading } from './findSectionsByHeading.js';
 import { register as replaceTableRowData } from './replaceTableRowData.js';
-import { register as appendTableRows } from './appendTableRows.js';
+import { register as appendDocTableRows } from './appendDocTableRows.js';
 import { register as deleteTableRows } from './deleteTableRows.js';
 
 // Sub-domains
@@ -62,7 +62,7 @@ export function registerDocsTools(server: FastMCP) {
   getTableStructure(server);
   findSectionsByHeading(server);
   replaceTableRowData(server);
-  appendTableRows(server);
+  appendDocTableRows(server);
   deleteTableRows(server);
 
   // Sub-domains

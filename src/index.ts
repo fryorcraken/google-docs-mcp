@@ -28,6 +28,7 @@ import { registerDownloadRoute } from './downloadProxy.js';
 import { FirestoreTokenStorage } from './firestoreTokenStorage.js';
 import { logger } from './logger.js';
 import { getEnabledScopes, parseEnabledDomains } from './scopeConfig.js';
+import { finalizeLazyMode, isLazyModeEnabled, startLazyCapture } from './lazyMode.js';
 
 // --- Auth subcommand ---
 if (process.argv[2] === 'auth') {
@@ -200,12 +201,32 @@ const server = new FastMCP({
 const registeredTools: Parameters<FastMCP['addTool']>[0][] = [];
 collectToolsWhileRegistering(server, registeredTools);
 if (isRemote) wrapServerForRemote(server);
-registerAllTools(server);
+
+// Lazy mode short-circuits tool registration: startLazyCapture stashes
+// every addTool() call into a registry, then finalizeLazyMode exposes
+// 3 meta-tools (searchTools / describeTool / callTool) so tools/list
+// only ships those instead of the full ~128-tool schema dump.
+const lazyMode = isLazyModeEnabled();
+let underlyingToolCount = 0;
+if (lazyMode) {
+  // Grab the *current* addTool — in remote mode this is the
+  // auth-wrapping proxy installed by wrapServerForRemote, NOT the
+  // FastMCP-native addTool. The 3 meta-tools must go through this
+  // outer chain so they still get auth enforcement in httpStream mode.
+  // Do not "fix" this by reaching into FastMCP directly.
+  const outerAddTool = server.addTool.bind(server);
+  const registry = startLazyCapture(server);
+  registerAllTools(server);
+  underlyingToolCount = registry.all.length;
+  finalizeLazyMode(server, registry, outerAddTool);
+} else {
+  registerAllTools(server);
+}
 
 try {
   if (isRemote) {
     logger.info('Starting in remote mode (httpStream + MCP OAuth 2.1)...');
-    registerLandingPage(server, registeredTools.length);
+    registerLandingPage(server, lazyMode ? underlyingToolCount : registeredTools.length);
     registerDownloadRoute(server);
 
     const port = parseInt(process.env.PORT || '8080');
