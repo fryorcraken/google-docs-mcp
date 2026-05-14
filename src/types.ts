@@ -129,11 +129,19 @@ export const TextStyleParameters = z
       .optional()
       .describe('Set text background color using hex format (e.g., "#FFFF00").'),
     linkUrl: z
-      .string()
-      .url()
-      .refine((url) => /^https?:\/\//i.test(url), { message: 'Only http/https URLs are allowed.' })
+      .union([
+        z
+          .string()
+          .url()
+          .refine((url) => /^https?:\/\//i.test(url), {
+            message: 'Only http/https URLs are allowed.',
+          }),
+        z.null(),
+      ])
       .optional()
-      .describe('Make the text a hyperlink pointing to this URL (http or https only).'),
+      .describe(
+        'Make the text a hyperlink pointing to this URL (http or https only). Pass null to clear an existing hyperlink from the range.'
+      ),
     // clearDirectFormatting: z.boolean().optional().describe('If true, attempts to clear all direct text formatting within the range before applying new styles.') // Harder to implement perfectly
   })
   .describe('Parameters for character-level text formatting.');
