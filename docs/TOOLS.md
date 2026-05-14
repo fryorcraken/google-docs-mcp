@@ -16,19 +16,20 @@ Tradeoff: one extra round-trip per new capability the agent uses (search → des
 
 For agents asking "how do I edit this Google Doc in place?":
 
-| Action                                       | Tool(s)                                                                                    |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Insert text/structure at an index            | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*`       |
-| **Insert markdown-formatted content**        | **`insertMarkdown`** (by index, or anchored to text with `before`/`after`)                 |
-| Delete a range                               | `deleteRange`                                                                              |
-| Find and replace text (no formatting)        | `findAndReplace`, `modifyText`                                                             |
-| **Replace a range with markdown formatting** | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                           |
-| Restyle a range                              | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                              |
-| **Add/remove bullets**                       | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`) |
-| Replace whole doc with markdown              | `replaceDocumentWithMarkdown`                                                              |
-| Append                                       | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                           |
-| Edit table contents                          | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`            |
-| Manage comments                              | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                          |
+| Action                                           | Tool(s)                                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Insert text/structure at an index                | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*`       |
+| **Insert markdown-formatted content**            | **`insertMarkdown`** (by index, or anchored to text with `before`/`after`)                 |
+| Delete a range                                   | `deleteRange`                                                                              |
+| Find and replace text (no formatting)            | `findAndReplace`, `modifyText`                                                             |
+| **Replace a range with markdown formatting**     | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                           |
+| Restyle a range                                  | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                              |
+| **Add/remove bullets**                           | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`) |
+| **Add an item to an existing custom-glyph list** | **`addListItem`** (insert after a donor paragraph already in the desired list)             |
+| Replace whole doc with markdown                  | `replaceDocumentWithMarkdown`                                                              |
+| Append                                           | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                           |
+| Edit table contents                              | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`            |
+| Manage comments                                  | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                          |
 
 Canonical workflow: `readDocument` with `format='json'` → find indices → call the right verb. Use `format='markdown'` first if you need to inspect the content human-readably.
 
@@ -175,6 +176,23 @@ Adds, removes, or changes paragraph bullets/numbering. The canonical fix for "I 
 - `bulletPreset` (required when `action='set'`): One of the Google Docs BulletGlyphPreset values, e.g. `BULLET_DISC_CIRCLE_SQUARE` (filled-disc bullets) or `NUMBERED_DECIMAL_ALPHA_ROMAN` (ordered numbering)
 - `target`: One of `{ startIndex, endIndex }`, `{ textToFind, matchInstance? }`, or `{ indexWithinParagraph }`. Text and index targets snap to the containing paragraph automatically.
 - `tabId` (optional): Target a specific tab
+
+**Limitation — custom-glyph lists:** `action='set'` always creates a fresh list from a built-in preset. It cannot attach a paragraph to a specific existing list (e.g. one with a literal `-` glyph imported from Word). The Google Docs API does not expose paragraph-to-list assignment at all; the only mechanism that works is the inheritance trick, which lives in [`addListItem`](#addlistitem).
+
+#### `addListItem`
+
+Adds a new list item immediately after an existing list item (the **donor**). The new item inherits the donor's bullet — including custom glyphs that no preset reproduces. This is the only way to add an item to a custom-glyph list via the Docs API.
+
+**Parameters:**
+
+- `documentId`: The document ID
+- `donor`: A paragraph already in the desired list. Provide either `{ textToFind, matchInstance? }` or `{ indexWithinDonor }`. The new item lands directly after this paragraph.
+- `text`: The text content for the new item (no bullet markers — the bullet is inherited).
+- `tabId` (optional): Target a specific tab
+
+**How it works:** the Docs API has no operation that says "attach this paragraph to listId X". It does have one well-defined inheritance rule: inserting a `\n` mid-paragraph creates a new paragraph whose style is copied from the original, including its `bullet.listId` and `bullet.nestingLevel`. This tool exploits that rule by inserting `\n<text>` just before the donor's trailing newline.
+
+**Constraint:** the new item is always placed directly after the donor. To insert into the middle of a list, pick the donor item that the new one should follow. To replace an existing paragraph's bullet, add a new sibling item via this tool and delete the old paragraph with `deleteRange`.
 
 ### Known Limitations for Markdown
 
