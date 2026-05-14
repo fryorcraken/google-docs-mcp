@@ -85,9 +85,11 @@ Tradeoff: one extra round-trip per new capability the agent uses (search → des
 Tools for editing existing Google Docs without rewriting them:
 
 - **Insert at a position**: `insertText`, `insertTable`, `insertImageFromUrl`/`insertLocalImage`, `insertPageBreak`, `insertSectionBreak`, `insertDateChip`, `insertPerson`, `insertRichLink`
+- **Insert _markdown-formatted_ content at a position**: `insertMarkdown` — takes `{index}` or `{textToFind, position: 'before' | 'after'}`. Use when inserting a new section (with heading/list styling) mid-document.
 - **Delete or replace by range**: `deleteRange`, `findAndReplace` (text only), `modifyText` (text + restyle)
 - **Replace by range _with markdown formatting_**: `replaceRangeWithMarkdown` — takes either `{startIndex, endIndex}` or `{textToFind, matchInstance}`. Use this when the replacement needs headings/lists/links/etc.
 - **Restyle a range**: `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`
+- **Add / remove paragraph bullets**: `updateParagraphBullets` — `action: 'remove'` clears the bullet attribute (e.g. on a heading that inherited one); `action: 'set'` with a `bulletPreset` applies / changes the glyph. `applyParagraphStyle` deliberately does not touch the bullet attribute, so this tool is the only path for surgical bullet edits.
 - **Whole-doc markdown rewrite**: `replaceDocumentWithMarkdown`
 - **Append**: `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`
 - **Tables**: `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`, `cloneTable`

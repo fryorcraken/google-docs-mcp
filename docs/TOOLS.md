@@ -16,17 +16,19 @@ Tradeoff: one extra round-trip per new capability the agent uses (search → des
 
 For agents asking "how do I edit this Google Doc in place?":
 
-| Action                                       | Tool(s)                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Insert text/structure at an index            | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*` |
-| Delete a range                               | `deleteRange`                                                                        |
-| Find and replace text (no formatting)        | `findAndReplace`, `modifyText`                                                       |
-| **Replace a range with markdown formatting** | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                     |
-| Restyle a range                              | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                        |
-| Replace whole doc with markdown              | `replaceDocumentWithMarkdown`                                                        |
-| Append                                       | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                     |
-| Edit table contents                          | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`      |
-| Manage comments                              | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                    |
+| Action                                       | Tool(s)                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Insert text/structure at an index            | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*`       |
+| **Insert markdown-formatted content**        | **`insertMarkdown`** (by index, or anchored to text with `before`/`after`)                 |
+| Delete a range                               | `deleteRange`                                                                              |
+| Find and replace text (no formatting)        | `findAndReplace`, `modifyText`                                                             |
+| **Replace a range with markdown formatting** | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                           |
+| Restyle a range                              | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                              |
+| **Add/remove bullets**                       | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`) |
+| Replace whole doc with markdown              | `replaceDocumentWithMarkdown`                                                              |
+| Append                                       | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                           |
+| Edit table contents                          | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`            |
+| Manage comments                              | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                          |
 
 Canonical workflow: `readDocument` with `format='json'` → find indices → call the right verb. Use `format='markdown'` first if you need to inspect the content human-readably.
 
@@ -148,6 +150,30 @@ Appends markdown content to the end of a document with full formatting.
 - `markdown`: The markdown content to append
 - `addNewlineIfNeeded` (optional, default: true): Add spacing before appended content
 - `firstHeadingAsTitle` (optional, default: false): If true, the first `# H1` is styled as a Google Docs **Title** instead of Heading 1
+- `tabId` (optional): Target a specific tab
+
+#### `insertMarkdown`
+
+Inserts markdown-formatted content at a chosen position in a document. Use this when you need to insert a new section (with its own heading, lists, etc.) mid-document — `appendMarkdown` only writes at the end, and `findAndReplace` can't introduce new paragraph styling.
+
+**Parameters:**
+
+- `documentId`: The document ID
+- `markdown`: The markdown content to insert
+- `target`: Either `{ index }` for a direct character index, or `{ textToFind, position }` where `position` is `'before'` or `'after'` an existing piece of text. Use `position: 'before'` against the first text of the next paragraph to insert a brand-new paragraph between two existing ones.
+- `tabId` (optional): Target a specific tab; defaults to the first tab on tabbed docs
+- `firstHeadingAsTitle` (optional, default: false): Style the first `# H1` as Google Docs **Title**
+
+#### `updateParagraphBullets`
+
+Adds, removes, or changes paragraph bullets/numbering. The canonical fix for "I have a heading or paragraph that accidentally inherited a bullet from its neighbour and I can't get rid of it" — `applyParagraphStyle` doesn't touch the `bullet` attribute, so this tool is the only way (short of UI editing) to clear it.
+
+**Parameters:**
+
+- `documentId`: The document ID
+- `action`: `'remove'` to clear the bullet attribute on the targeted paragraphs, or `'set'` to apply a bullet/numbering preset
+- `bulletPreset` (required when `action='set'`): One of the Google Docs BulletGlyphPreset values, e.g. `BULLET_DISC_CIRCLE_SQUARE` (filled-disc bullets) or `NUMBERED_DECIMAL_ALPHA_ROMAN` (ordered numbering)
+- `target`: One of `{ startIndex, endIndex }`, `{ textToFind, matchInstance? }`, or `{ indexWithinParagraph }`. Text and index targets snap to the containing paragraph automatically.
 - `tabId` (optional): Target a specific tab
 
 ### Known Limitations for Markdown
