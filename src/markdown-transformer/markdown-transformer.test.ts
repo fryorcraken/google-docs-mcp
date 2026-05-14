@@ -576,21 +576,25 @@ More content.`;
   });
 
   describe('Paragraph Spacing', () => {
-    it('should apply spaceBelow to normal text paragraphs', () => {
+    it('should apply spaceBelow + NORMAL_TEXT to normal text paragraphs', () => {
       const requests = convertMarkdownToRequests('First paragraph.\n\nSecond paragraph.', 1);
 
-      const spacingReqs = requests.filter(
+      // Normal paragraphs now also reset namedStyleType to NORMAL_TEXT so that
+      // when the insertion point is inside a heading, the inserted body text
+      // isn't re-rendered as a heading (issue #23).
+      const normalReqs = requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType &&
+          r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT' &&
           !r.updateParagraphStyle?.paragraphStyle?.borderBottom
       );
-      expect(spacingReqs).toHaveLength(2);
+      expect(normalReqs).toHaveLength(2);
 
-      for (const req of spacingReqs) {
+      for (const req of normalReqs) {
         expect(req.updateParagraphStyle!.paragraphStyle!.spaceBelow!.magnitude).toBe(8);
         expect(req.updateParagraphStyle!.paragraphStyle!.spaceBelow!.unit).toBe('PT');
-        expect(req.updateParagraphStyle!.fields).toBe('spaceBelow');
+        expect(req.updateParagraphStyle!.paragraphStyle!.namedStyleType).toBe('NORMAL_TEXT');
+        expect(req.updateParagraphStyle!.fields).toBe('namedStyleType,spaceBelow');
       }
     });
 
@@ -600,7 +604,7 @@ More content.`;
       const spacingReqs = requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType &&
+          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType?.startsWith('HEADING') &&
           !r.updateParagraphStyle?.paragraphStyle?.borderBottom
       );
       // Only 1 spacing request: the trailing spacing on the last list item
@@ -610,13 +614,14 @@ More content.`;
     it('should not apply spaceBelow to headings (they have named styles)', () => {
       const requests = convertMarkdownToRequests('# Heading\n\n## Subheading', 1);
 
-      const spacingReqs = requests.filter(
+      // Headings get spaceBelow only if they're in normalParagraphRanges,
+      // which they are NOT. So no spaceBelow request with namedStyleType=HEADING_*.
+      const headingSpacingReqs = requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType &&
-          !r.updateParagraphStyle?.paragraphStyle?.borderBottom
+          r.updateParagraphStyle?.paragraphStyle?.namedStyleType?.startsWith('HEADING')
       );
-      expect(spacingReqs).toHaveLength(0);
+      expect(headingSpacingReqs).toHaveLength(0);
     });
 
     it('should apply spaceBelow to normal paragraphs and last list items in mixed content', () => {
@@ -626,7 +631,7 @@ More content.`;
       const spacingReqs = requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType &&
+          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType?.startsWith('HEADING') &&
           !r.updateParagraphStyle?.paragraphStyle?.borderBottom
       );
       // "A paragraph." + "Another paragraph." + last list item trailing spacing = 3
@@ -639,7 +644,7 @@ More content.`;
       const spacingReqs = requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType
+          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType?.startsWith('HEADING')
       );
       expect(spacingReqs).toHaveLength(1);
       expect(spacingReqs[0].updateParagraphStyle!.range!.tabId).toBe('tab-xyz');
@@ -651,11 +656,13 @@ More content.`;
     // We identify them by checking they don't overlap with normalParagraph spacing ranges or
     // heading styles. Instead we just verify the total spaceBelow count vs paragraph-only count.
     function getListSpacingReqs(requests: ReturnType<typeof convertMarkdownToRequests>) {
-      // All spaceBelow requests that are NOT heading styles and NOT border styles
+      // All spaceBelow requests that are NOT heading styles and NOT border styles.
+      // Note: normal-paragraph spaceBelow now also carries namedStyleType=NORMAL_TEXT
+      // (issue #23), so we treat HEADING_* as the only disqualifier.
       return requests.filter(
         (r) =>
           r.updateParagraphStyle?.paragraphStyle?.spaceBelow &&
-          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType &&
+          !r.updateParagraphStyle?.paragraphStyle?.namedStyleType?.startsWith('HEADING') &&
           !r.updateParagraphStyle?.paragraphStyle?.borderBottom
       );
     }
@@ -1622,5 +1629,84 @@ describe('inlineOnly conversion mode', () => {
       (r) => r.updateParagraphStyle?.paragraphStyle?.spaceBelow
     );
     expect(paragraphStyleReqs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Override inherited paragraph style (#23)', () => {
+  // When the insertion point is inside a HEADING_3 paragraph, every freshly
+  // inserted paragraph inherits HEADING_3. Plain text and bullet items in the
+  // markdown should override that inheritance so they render as body text.
+  it('emits namedStyleType: NORMAL_TEXT for each normal paragraph', () => {
+    const requests = convertMarkdownToRequests('First paragraph.\n\nSecond paragraph.', 100);
+
+    const normalReqs = requests.filter(
+      (r) => r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT'
+    );
+    expect(normalReqs).toHaveLength(2);
+    for (const req of normalReqs) {
+      expect(req.updateParagraphStyle!.fields).toContain('namedStyleType');
+    }
+  });
+
+  it('emits namedStyleType: NORMAL_TEXT for each bullet list item', () => {
+    // Bullets inherit the host paragraph's namedStyleType too — without an
+    // explicit reset, '- item' inserted at a HEADING_3 location renders as a
+    // bulleted heading. We expect one NORMAL_TEXT reset per list item.
+    const requests = convertMarkdownToRequests('- one\n- two\n- three', 100);
+
+    const itemResets = requests.filter(
+      (r) =>
+        r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT' &&
+        r.updateParagraphStyle?.fields === 'namedStyleType'
+    );
+    expect(itemResets).toHaveLength(3);
+  });
+
+  it('emits NORMAL_TEXT resets for items in nested lists too', () => {
+    const requests = convertMarkdownToRequests('- parent\n  - child1\n  - child2', 100);
+
+    const itemResets = requests.filter(
+      (r) =>
+        r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT' &&
+        r.updateParagraphStyle?.fields === 'namedStyleType'
+    );
+    expect(itemResets).toHaveLength(3);
+  });
+
+  it('does NOT downgrade heading paragraphs to NORMAL_TEXT', () => {
+    // The heading paragraph gets HEADING_2 applied via paragraphRanges. It must
+    // not also get a NORMAL_TEXT request that would race it.
+    const requests = convertMarkdownToRequests('## A heading\n\nbody text', 100);
+
+    const headingReqs = requests.filter(
+      (r) => r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'HEADING_2'
+    );
+    expect(headingReqs).toHaveLength(1);
+
+    // The body paragraph still gets the NORMAL_TEXT + spaceBelow.
+    const normalReqs = requests.filter(
+      (r) => r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT'
+    );
+    expect(normalReqs).toHaveLength(1);
+
+    // Both ranges should be disjoint
+    const headingRange = headingReqs[0].updateParagraphStyle!.range!;
+    const normalRange = normalReqs[0].updateParagraphStyle!.range!;
+    const overlap =
+      headingRange.startIndex! < normalRange.endIndex! &&
+      normalRange.startIndex! < headingRange.endIndex!;
+    expect(overlap).toBe(false);
+  });
+
+  it('propagates tabId on the new namedStyleType requests', () => {
+    const requests = convertMarkdownToRequests('- item', 100, 'tab-xyz');
+
+    const itemReset = requests.find(
+      (r) =>
+        r.updateParagraphStyle?.paragraphStyle?.namedStyleType === 'NORMAL_TEXT' &&
+        r.updateParagraphStyle?.fields === 'namedStyleType'
+    );
+    expect(itemReset).toBeDefined();
+    expect(itemReset!.updateParagraphStyle!.range!.tabId).toBe('tab-xyz');
   });
 });

@@ -931,10 +931,13 @@ function finalizeFormatting(context: ConversionContext): void {
     }
   }
 
-  // Normal paragraph spacing (spaceBelow so paragraphs have visible gaps between them,
-  // matching the visual separation expected from markdown-rendered paragraphs).
-  // The default Google Docs NORMAL_TEXT style has 0pt spacing, so without this
-  // paragraphs would appear crammed together with no gap.
+  // Normal paragraph spacing (spaceBelow so paragraphs have visible gaps between
+  // them) AND namedStyleType reset to NORMAL_TEXT. The reset is critical: when
+  // inserting at a position whose host paragraph is e.g. HEADING_3, every
+  // freshly-inserted paragraph inherits that named style. Without an explicit
+  // reset, bullet items and plain paragraphs in the markdown render as headings
+  // (issue #23). Markdown-derived paragraphs that are headings have their style
+  // applied separately via `paragraphRanges`, so they overwrite this reset.
   for (const normalRange of context.normalParagraphRanges) {
     const range: docs_v1.Schema$Range = {
       startIndex: normalRange.startIndex,
@@ -948,9 +951,34 @@ function finalizeFormatting(context: ConversionContext): void {
       updateParagraphStyle: {
         range,
         paragraphStyle: {
+          namedStyleType: 'NORMAL_TEXT',
           spaceBelow: { magnitude: 8, unit: 'PT' },
         },
-        fields: 'spaceBelow',
+        fields: 'namedStyleType,spaceBelow',
+      },
+    });
+  }
+
+  // List-item paragraphs also inherit the host paragraph's namedStyleType. The
+  // bullet glyph is applied by createParagraphBullets, but the underlying
+  // paragraph style (e.g. HEADING_3) carries over from the insertion point and
+  // makes the bullet text render as a heading. Reset each list item range to
+  // NORMAL_TEXT so the bullet renders as ordinary body text.
+  for (const item of context.pendingListItems) {
+    if (item.endIndex === undefined || item.endIndex <= item.startIndex) continue;
+    const range: docs_v1.Schema$Range = {
+      startIndex: item.startIndex,
+      endIndex: item.endIndex,
+    };
+    if (context.tabId) {
+      range.tabId = context.tabId;
+    }
+
+    context.formatRequests.push({
+      updateParagraphStyle: {
+        range,
+        paragraphStyle: { namedStyleType: 'NORMAL_TEXT' },
+        fields: 'namedStyleType',
       },
     });
   }
