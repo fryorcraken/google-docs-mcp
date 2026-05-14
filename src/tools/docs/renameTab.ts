@@ -22,11 +22,13 @@ export function register(server: FastMCP) {
       log.info(`Renaming tab ${args.tabId} to "${args.newTitle}" in doc ${args.documentId}`);
 
       try {
-        // Verify the tab exists
+        // Verify the tab exists. Bare `documentTab` would recurse into
+        // comment-related fields and fail on docs with comments — see
+        // TAB_RESOLUTION_FIELDS_INNER for the same trap.
         const docInfo = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
-          fields: 'tabs(tabProperties,documentTab)',
+          fields: `tabs(${GDocsHelpers.TAB_RESOLUTION_FIELDS_INNER})`,
         });
         const targetTab = GDocsHelpers.findTabById(docInfo.data, args.tabId);
         if (!targetTab) {

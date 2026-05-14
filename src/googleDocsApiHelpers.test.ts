@@ -638,9 +638,6 @@ describe('resolveTab', () => {
   });
 
   it('finds grandchildren two levels deep under childTabs', async () => {
-    // Regression: an earlier field mask `childTabs(tabProperties(tabId,title))`
-    // restricted childTabs to one level, making grandchildren invisible. The
-    // mask now uses a bare `childTabs` so the API returns the full subtree.
     const mockDocs = makeMockDocs({
       tabs: [
         {
@@ -656,6 +653,29 @@ describe('resolveTab', () => {
     });
     const result = await resolveTab(mockDocs as any, 'doc1', 't.grandchild');
     expect(result.tabId).toBe('t.grandchild');
+  });
+
+  it('finds great-grandchildren three levels deep under childTabs', async () => {
+    const mockDocs = makeMockDocs({
+      tabs: [
+        {
+          tabProperties: { tabId: 't.parent' },
+          childTabs: [
+            {
+              tabProperties: { tabId: 't.child' },
+              childTabs: [
+                {
+                  tabProperties: { tabId: 't.grandchild' },
+                  childTabs: [{ tabProperties: { tabId: 't.great' } }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const result = await resolveTab(mockDocs as any, 'doc1', 't.great');
+    expect(result.tabId).toBe('t.great');
   });
 
   it('throws UserError listing available tabs when requested tab is missing', async () => {
@@ -674,14 +694,25 @@ describe('resolveTab', () => {
     );
   });
 
-  it('uses includeTabsContent=true and a recursion-safe minimal field mask', async () => {
+  it('uses includeTabsContent=true and a minimal field mask without bare childTabs', async () => {
+    // Regression: a bare `childTabs` in the field mask returns the full
+    // subtree, including documentTab.body... paths that the Docs API
+    // counts as "comment-specific fields". On documents that contain
+    // comments, the API rejects the read with:
+    //   "Field mask cannot retrieve comment-specific fields when
+    //    include_comments is false."
+    // The mask must explicitly nest childTabs and restrict each level
+    // to tabProperties only. See issue #18.
     const mockDocs = makeMockDocs({});
     await resolveTab(mockDocs as any, 'doc1');
-    expect(mockDocs.documents.get).toHaveBeenCalledWith({
-      documentId: 'doc1',
-      includeTabsContent: true,
-      fields: 'tabs(tabProperties(tabId,title),childTabs)',
-    });
+    const call = mockDocs.documents.get.mock.calls[0][0];
+    expect(call.documentId).toBe('doc1');
+    expect(call.includeTabsContent).toBe(true);
+    expect(typeof call.fields).toBe('string');
+    // Top-level tabs() must restrict to tabProperties(...) only.
+    expect(call.fields).not.toMatch(/tabs\([^)]*documentTab/);
+    // No bare `childTabs` anywhere (would-be `,childTabs` or `(childTabs`).
+    expect(call.fields).not.toMatch(/[,(]childTabs(?:[,)])/);
   });
 });
 

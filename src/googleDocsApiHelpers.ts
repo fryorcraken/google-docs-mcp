@@ -950,9 +950,18 @@ export async function getTableCellRange(
   columnIndex: number,
   tabId?: string
 ): Promise<{ startIndex: number; endIndex: number }> {
+  // No `fields` mask + `includeTabsContent: true` would pull the full
+  // doc (including suggestion/comment paths), which the API rejects
+  // on documents with comments when include_comments is false. Restrict
+  // to just the structural fields we need to walk the table.
+  const bodyContentFields =
+    'content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))';
   const res = await docs.documents.get({
     documentId,
     ...(tabId && { includeTabsContent: true }),
+    fields: tabId
+      ? `body(${bodyContentFields}),tabs(${TAB_RESOLUTION_FIELDS_INNER},documentTab(body(${bodyContentFields})))`
+      : `body(${bodyContentFields})`,
   });
 
   // Get body content from the correct tab or default
@@ -1425,19 +1434,24 @@ export interface TabResolution {
  *
  * Example:
  *   `body(...),tabs(${TAB_RESOLUTION_FIELDS_INNER},documentTab(...))`
+ *
+ * Why the explicit nesting:
+ * A bare `childTabs` would, per Google's field-mask conventions,
+ * recursively return the full childTabs subtree — including paths
+ * like `documentTab.body.content.*.paragraph.elements.*.textRun.suggestedInsertionIds`
+ * that the Docs API counts as "comment-specific fields". On documents
+ * that contain comments, the API then rejects the read with:
+ *   "Field mask cannot retrieve comment-specific fields when
+ *    include_comments is false."
+ * Explicit nesting names only the tab-properties tree, avoiding the
+ * trap. Three levels of depth match what `listDocumentTabs` uses and
+ * cover every real-world tab hierarchy I've seen.
  */
-export const TAB_RESOLUTION_FIELDS_INNER = 'tabProperties(tabId,title),childTabs';
+export const TAB_RESOLUTION_FIELDS_INNER =
+  'tabProperties(tabId,title),childTabs(tabProperties(tabId,title),childTabs(tabProperties(tabId,title),childTabs(tabProperties(tabId,title))))';
 
 /**
- * Field mask for resolveTab's standalone fetch. Recursively requests
- * `tabProperties` at every nesting depth.
- *
- * Google Docs field masks don't support recursion syntax. Per Google's
- * field-mask conventions, a bare field name (no parentheses) returns
- * all of that field's sub-fields including descendants. So `childTabs`
- * with no restriction returns the full childTabs subtree. We keep the
- * top-level `tabProperties` restricted to (tabId,title) to avoid
- * pulling documentTab content we don't need for resolution.
+ * Field mask for resolveTab's standalone fetch.
  */
 const TAB_RESOLUTION_FIELDS = `tabs(${TAB_RESOLUTION_FIELDS_INNER})`;
 
