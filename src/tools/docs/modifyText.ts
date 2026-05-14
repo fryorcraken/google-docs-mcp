@@ -26,7 +26,11 @@ const ModifyTextParameters = DocumentIdParameter.extend({
     .union([RangeTarget, TextFindParameter, InsertionTarget])
     .describe('Target by range indices, text search, or insertion index.'),
   text: z.string().optional().describe('New text to insert or replace with.'),
-  style: TextStyleParameters.optional().describe('Text formatting to apply.'),
+  style: TextStyleParameters.optional().describe(
+    'Text formatting to apply. For inserts (insertionIndex target), this applies to the newly inserted text — ' +
+      'pass explicit false values (e.g. {bold: false, italic: false}) to opt out of formatting the inserted text would otherwise inherit ' +
+      'from the adjacent run. For replacements, applies to the replacement text. For format-only calls, applies to the existing range.'
+  ),
   tabId: z
     .string()
     .optional()
@@ -109,7 +113,9 @@ export function register(server: FastMCP) {
     description:
       'Combines text replacement/insertion and formatting in one atomic operation. ' +
       'Can insert text at a position, replace a range or found text, apply formatting, ' +
-      "or any combination. Use readGoogleDoc with format='json' to determine indices.",
+      "or any combination. Use readGoogleDoc with format='json' to determine indices. " +
+      'For inserts, the new text inherits textStyle from the adjacent run; pass an explicit ' +
+      'style (e.g. {bold: false}) to override.',
     parameters: ModifyTextParameters,
     execute: async (args, { log }) => {
       const docs = await getDocsClient();

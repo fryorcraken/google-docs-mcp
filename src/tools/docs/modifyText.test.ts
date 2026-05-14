@@ -103,6 +103,25 @@ describe('buildModifyTextRequests', () => {
       expect(requests[1].updateTextStyle!.textStyle!.italic).toBe(true);
       expect(requests[1].updateTextStyle!.fields).toBe('italic');
     });
+
+    it('should emit unset styles (bold: false) so callers can break adjacent inheritance', () => {
+      // Inserted text inherits textStyle from the preceding run. To opt out of
+      // an inherited bold/italic/link, callers pass style: { bold: false } etc.
+      // The helper must produce updateTextStyle with bold=false, fields=bold.
+      const requests = buildModifyTextRequests({
+        startIndex: 5,
+        text: '- ',
+        style: { bold: false, italic: false },
+      });
+
+      expect(requests).toHaveLength(2);
+      expect(requests[1]).toHaveProperty('updateTextStyle');
+      expect(requests[1].updateTextStyle!.textStyle!.bold).toBe(false);
+      expect(requests[1].updateTextStyle!.textStyle!.italic).toBe(false);
+      expect(requests[1].updateTextStyle!.fields).toBe('bold,italic');
+      expect(requests[1].updateTextStyle!.range!.startIndex).toBe(5);
+      expect(requests[1].updateTextStyle!.range!.endIndex).toBe(7);
+    });
   });
 
   describe('tabId propagation', () => {
