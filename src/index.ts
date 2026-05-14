@@ -80,15 +80,19 @@ process.on('SIGHUP', () => cleanShutdown('SIGHUP'));
 // In practice, some MCP clients exit without sending SIGTERM, and the
 // stdin 'end' event can be swallowed by the transport's internal read
 // loop — leaving the server running as a zombie that consumes CPU and
-// memory indefinitely. As a backstop, detect reparenting to init
-// (PID 1) and exit. The check runs every 10 s and is unref()'d so it
-// does not keep the event loop alive on its own.
+// memory indefinitely. As a backstop, detect any reparent (parent died)
+// and exit. The check runs every 10 s and is unref()'d so it does not
+// keep the event loop alive on its own.
+//
+// Previously this only fired when the new ppid was 1 (init). On hosts
+// running systemd user sessions the orphan can be reparented to
+// `systemd --user` (some other pid) instead — see issue #17.
 if (process.env.MCP_TRANSPORT !== 'httpStream') {
   const initialPpid = process.ppid;
   const watchdog = setInterval(() => {
-    if (process.ppid !== initialPpid && process.ppid === 1) {
+    if (process.ppid !== initialPpid) {
       logger.info(
-        `Parent process (was PID ${initialPpid}) exited; reparented to init. Shutting down.`
+        `Parent process (was PID ${initialPpid}) exited; reparented to PID ${process.ppid}. Shutting down.`
       );
       process.exit(0);
     }
