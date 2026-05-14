@@ -90,6 +90,45 @@ interface TableState {
 export interface ConversionOptions {
   /** Treat the first H1 (`# ...`) as a Google Docs TITLE instead of HEADING_1. Default false. */
   firstHeadingAsTitle?: boolean;
+  /**
+   * Treat the markdown as inline-only content being spliced into an existing
+   * paragraph. Suppresses the trailing newline after the paragraph close and
+   * skips spaceBelow on the inserted text, so the surrounding paragraph stays
+   * intact. The caller must guarantee the markdown contains a single inline
+   * paragraph (no headings, lists, code blocks, tables, or hr) — pass markdown
+   * that fails {@link isInlineOnlyMarkdown} and you'll get the wrong result.
+   */
+  inlineOnly?: boolean;
+}
+
+/**
+ * Returns true if the given markdown parses to a single inline paragraph with
+ * no block-level constructs (no headings, lists, code blocks, tables, hr,
+ * blockquotes). Callers use this to decide whether it is safe to enable
+ * {@link ConversionOptions.inlineOnly}.
+ */
+export function isInlineOnlyMarkdown(markdown: string): boolean {
+  if (!markdown || markdown.trim().length === 0) return false;
+
+  const parser = createParser();
+  const tokens = parser.parse(markdown, {});
+
+  // An inline-only document has the shape: paragraph_open, inline, paragraph_close.
+  // Any token sequence with more block tokens (heading, list, code, table, hr,
+  // blockquote, or a second paragraph) disqualifies.
+  let paragraphCount = 0;
+  for (const token of tokens) {
+    if (token.type === 'paragraph_open') {
+      paragraphCount += 1;
+      if (paragraphCount > 1) return false;
+      continue;
+    }
+    if (token.type === 'paragraph_close' || token.type === 'inline') continue;
+    // Any other block-level token (heading_*, *_list_*, list_item_*, fence,
+    // code_block, hr, table_*, blockquote_*) means it's not inline-only.
+    return false;
+  }
+  return paragraphCount === 1;
 }
 
 interface ConversionContext {
@@ -114,6 +153,9 @@ interface ConversionContext {
   /** When firstHeadingAsTitle is on, tracks whether the title H1 has been consumed. */
   titleConsumed: boolean;
   firstHeadingAsTitle: boolean;
+  /** When true, suppress trailing newline + normal-paragraph spaceBelow on the
+   *  single inline paragraph. See {@link ConversionOptions.inlineOnly}. */
+  inlineOnly: boolean;
 }
 
 const CODE_FONT_FAMILY = 'Roboto Mono';
@@ -192,6 +234,7 @@ export function convertMarkdownToRequests(
     tabId,
     titleConsumed: false,
     firstHeadingAsTitle: options?.firstHeadingAsTitle ?? false,
+    inlineOnly: options?.inlineOnly ?? false,
   };
 
   try {
@@ -444,6 +487,15 @@ function handleParagraphOpen(context: ConversionContext): void {
 function handleParagraphClose(context: ConversionContext): void {
   // Track normal (non-list) paragraph ranges for spacing
   const paragraphStart = context.currentParagraphStart;
+
+  // inlineOnly mode: this is the single inline paragraph being spliced into an
+  // existing paragraph. Do not emit a trailing newline (it would split the
+  // surrounding paragraph) and do not record a normalParagraphRange (that would
+  // emit updateParagraphStyle with spaceBelow, restyling the host paragraph).
+  if (context.inlineOnly) {
+    context.currentParagraphStart = undefined;
+    return;
+  }
 
   if (!lastInsertEndsWithNewline(context)) {
     insertText('\n', context);

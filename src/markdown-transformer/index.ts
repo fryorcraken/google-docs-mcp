@@ -19,6 +19,7 @@ import type { BatchUpdateMetadata } from '../googleDocsApiHelpers.js';
 
 export { docsJsonToMarkdown } from './docsToMarkdown.js';
 export type { ConversionOptions } from './markdownToDocs.js';
+export { isInlineOnlyMarkdown } from './markdownToDocs.js';
 
 // --- Types ---
 
@@ -34,6 +35,14 @@ interface InsertOptions {
   tabId?: string;
   /** Treat the first H1 (`# ...`) as a Google Docs TITLE instead of HEADING_1. */
   firstHeadingAsTitle?: boolean;
+  /**
+   * Treat the markdown as inline-only content being spliced into an existing
+   * paragraph. Suppresses the trailing newline and the spaceBelow paragraph
+   * styling that would otherwise restyle the host paragraph. The caller is
+   * responsible for ensuring the markdown is actually inline-only via
+   * `isInlineOnlyMarkdown`.
+   */
+  inlineOnly?: boolean;
 }
 
 /** Debug metadata returned by insertMarkdown(). */
@@ -152,9 +161,10 @@ export async function insertMarkdown(
   const tabId = options?.tabId;
 
   const parseStart = performance.now();
-  const conversionOptions: ConversionOptions | undefined = options?.firstHeadingAsTitle
-    ? { firstHeadingAsTitle: true }
-    : undefined;
+  const conversionOptions: ConversionOptions | undefined =
+    options?.firstHeadingAsTitle || options?.inlineOnly
+      ? { firstHeadingAsTitle: options?.firstHeadingAsTitle, inlineOnly: options?.inlineOnly }
+      : undefined;
   const requests = convertMarkdownToRequests(markdown, startIndex, tabId, conversionOptions);
   const parseElapsedMs = Math.round(performance.now() - parseStart);
 
