@@ -13,10 +13,14 @@ vi.mock('../../googleDocsApiHelpers.js', async (importOriginal) => {
   };
 });
 
-vi.mock('../../markdown-transformer/index.js', () => ({
-  insertMarkdown: vi.fn(),
-  formatInsertResult: vi.fn().mockReturnValue('insert-summary'),
-}));
+vi.mock('../../markdown-transformer/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../markdown-transformer/index.js')>();
+  return {
+    ...actual,
+    insertMarkdown: vi.fn(),
+    formatInsertResult: vi.fn().mockReturnValue('insert-summary'),
+  };
+});
 
 import { getDocsClient } from '../../clients.js';
 import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
@@ -223,6 +227,40 @@ describe('replaceRangeWithMarkdown — range targeting', () => {
       'doc1',
       '# Title',
       expect.objectContaining({ firstHeadingAsTitle: true })
+    );
+  });
+
+  it('passes inlineOnly=true when markdown is a single inline paragraph (#22)', async () => {
+    const mockDocs = makeMockDocs({});
+    mockGetDocsClient.mockResolvedValue(mockDocs as any);
+
+    await toolExecute(
+      { documentId: 'doc1', markdown: ': On attack', startIndex: 10, endIndex: 20 },
+      { log: mockLog }
+    );
+
+    expect(mockInsertMarkdown).toHaveBeenCalledWith(
+      mockDocs,
+      'doc1',
+      ': On attack',
+      expect.objectContaining({ inlineOnly: true })
+    );
+  });
+
+  it('passes inlineOnly=false when markdown contains block constructs (#22)', async () => {
+    const mockDocs = makeMockDocs({});
+    mockGetDocsClient.mockResolvedValue(mockDocs as any);
+
+    await toolExecute(
+      { documentId: 'doc1', markdown: '# Heading\n\nbody', startIndex: 10, endIndex: 20 },
+      { log: mockLog }
+    );
+
+    expect(mockInsertMarkdown).toHaveBeenCalledWith(
+      mockDocs,
+      'doc1',
+      '# Heading\n\nbody',
+      expect.objectContaining({ inlineOnly: false })
     );
   });
 });

@@ -5,7 +5,11 @@ import { docs_v1 } from 'googleapis';
 import { getDocsClient } from '../../clients.js';
 import { DocumentIdParameter, MarkdownConversionError } from '../../types.js';
 import * as GDocsHelpers from '../../googleDocsApiHelpers.js';
-import { insertMarkdown, formatInsertResult } from '../../markdown-transformer/index.js';
+import {
+  insertMarkdown,
+  formatInsertResult,
+  isInlineOnlyMarkdown,
+} from '../../markdown-transformer/index.js';
 
 export function register(server: FastMCP) {
   server.addTool({
@@ -15,7 +19,10 @@ export function register(server: FastMCP) {
       "Target by {startIndex, endIndex} (from readDocument with format='json') " +
       'or by {textToFind, matchInstance} for text-based targeting. ' +
       'Supports headings, bold/italic/strikethrough, links, lists, code blocks, and tables. ' +
-      'Paragraph properties at startIndex are inherited by inserted content.',
+      'When the markdown is inline-only (no block-level constructs), the surrounding paragraph ' +
+      'is kept intact — no paragraph break is introduced. When the markdown contains block ' +
+      'constructs, paragraph properties at startIndex are inherited by the first inserted ' +
+      'paragraph.',
     parameters: DocumentIdParameter.extend({
       markdown: z
         .string()
@@ -127,10 +134,17 @@ export function register(server: FastMCP) {
         // 2. Insert markdown at startIndex — after deletion the trailing
         //    content has collapsed leftward, so this index is the same
         //    insertion point in the post-delete coordinate space.
+        //
+        //    Inline-only markdown (no headings, lists, code, tables) goes in
+        //    via inlineOnly mode so the transformer does not append a trailing
+        //    "\n" or emit paragraph-level styling — both would split the host
+        //    paragraph (#22).
+        const inlineOnly = isInlineOnlyMarkdown(args.markdown);
         const result = await insertMarkdown(docs, args.documentId, args.markdown, {
           startIndex,
           tabId: tab.tabId ?? undefined,
           firstHeadingAsTitle: args.firstHeadingAsTitle,
+          inlineOnly,
         });
 
         const debugSummary = formatInsertResult(result);

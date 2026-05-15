@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { convertMarkdownToRequests } from './markdownToDocs.js';
+import { convertMarkdownToRequests, isInlineOnlyMarkdown } from './markdownToDocs.js';
 import { docsJsonToMarkdown } from './docsToMarkdown.js';
 
 // ============================================================
@@ -1520,5 +1520,107 @@ describe('Docs to Markdown Conversion', () => {
       };
       expect(typeof docsJsonToMarkdown(doc)).toBe('string');
     });
+  });
+});
+
+describe('isInlineOnlyMarkdown', () => {
+  it('returns true for a single plain-text paragraph', () => {
+    expect(isInlineOnlyMarkdown(': On attack')).toBe(true);
+  });
+
+  it('returns true for a paragraph with inline formatting', () => {
+    expect(isInlineOnlyMarkdown('see **bold** and [link](https://x.com)')).toBe(true);
+  });
+
+  it('returns false for empty markdown', () => {
+    expect(isInlineOnlyMarkdown('')).toBe(false);
+    expect(isInlineOnlyMarkdown('   ')).toBe(false);
+  });
+
+  it('returns false when markdown contains a heading', () => {
+    expect(isInlineOnlyMarkdown('# heading')).toBe(false);
+    expect(isInlineOnlyMarkdown('text\n\n## another')).toBe(false);
+  });
+
+  it('returns false when markdown contains a list', () => {
+    expect(isInlineOnlyMarkdown('- item')).toBe(false);
+    expect(isInlineOnlyMarkdown('1. item')).toBe(false);
+  });
+
+  it('returns false when markdown contains a code block', () => {
+    expect(isInlineOnlyMarkdown('```\ncode\n```')).toBe(false);
+  });
+
+  it('returns false when markdown contains a table', () => {
+    expect(isInlineOnlyMarkdown('| a | b |\n|---|---|\n| 1 | 2 |')).toBe(false);
+  });
+
+  it('returns false when markdown contains an hr', () => {
+    expect(isInlineOnlyMarkdown('---')).toBe(false);
+  });
+
+  it('returns false when markdown contains a blockquote', () => {
+    expect(isInlineOnlyMarkdown('> quoted')).toBe(false);
+  });
+
+  it('returns false when markdown contains multiple paragraphs', () => {
+    expect(isInlineOnlyMarkdown('first\n\nsecond')).toBe(false);
+  });
+});
+
+describe('inlineOnly conversion mode', () => {
+  // Issue #22: replaceRangeWithMarkdown was splitting the host paragraph when
+  // the markdown was an inline-only run. The trailing newline emitted by
+  // handleParagraphClose, plus the updateParagraphStyle from
+  // normalParagraphRanges, both restyle/split the surrounding paragraph.
+  it('does NOT emit a trailing newline for inline-only markdown', () => {
+    const requests = convertMarkdownToRequests(': On attack', 100, undefined, {
+      inlineOnly: true,
+    });
+
+    const insertRequests = requests.filter((r) => r.insertText);
+    // Concatenated inserted text must not end with a newline
+    const allText = insertRequests.map((r) => r.insertText!.text).join('');
+    expect(allText).toBe(': On attack');
+    expect(allText.endsWith('\n')).toBe(false);
+  });
+
+  it('does NOT emit updateParagraphStyle (spaceBelow) for inline-only markdown', () => {
+    const requests = convertMarkdownToRequests(': On attack', 100, undefined, {
+      inlineOnly: true,
+    });
+
+    const paragraphStyleReqs = requests.filter((r) => r.updateParagraphStyle);
+    expect(paragraphStyleReqs).toHaveLength(0);
+  });
+
+  it('preserves inline formatting (bold, link) inside inline-only markdown', () => {
+    const requests = convertMarkdownToRequests(
+      'see **bold** and [link](https://x.com)',
+      100,
+      undefined,
+      { inlineOnly: true }
+    );
+
+    // Inline text style requests still get emitted
+    const styleReqs = requests.filter((r) => r.updateTextStyle);
+    expect(styleReqs.length).toBeGreaterThan(0);
+    // Confirm bold and link present
+    const boldReq = styleReqs.find((r) => r.updateTextStyle!.textStyle!.bold);
+    expect(boldReq).toBeDefined();
+    const linkReq = styleReqs.find((r) => r.updateTextStyle!.textStyle!.link?.url);
+    expect(linkReq).toBeDefined();
+  });
+
+  it('still emits the trailing newline + paragraph spacing without inlineOnly', () => {
+    // Regression guard for the default (non-inlineOnly) path.
+    const requests = convertMarkdownToRequests(': On attack', 100);
+    const insertRequests = requests.filter((r) => r.insertText);
+    const allText = insertRequests.map((r) => r.insertText!.text).join('');
+    expect(allText.endsWith('\n')).toBe(true);
+    const paragraphStyleReqs = requests.filter(
+      (r) => r.updateParagraphStyle?.paragraphStyle?.spaceBelow
+    );
+    expect(paragraphStyleReqs.length).toBeGreaterThan(0);
   });
 });
