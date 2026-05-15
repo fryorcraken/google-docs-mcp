@@ -5,6 +5,7 @@ import {
   getParagraphRange,
   resolveTab,
   resolveTabFromDocument,
+  buildUpdateTextStyleRequest,
 } from './googleDocsApiHelpers.js';
 
 describe('Text Range Finding', () => {
@@ -758,5 +759,30 @@ describe('resolveTabFromDocument', () => {
 
   it('error message for non-tabbed doc with tabId nudges the caller to omit', () => {
     expect(() => resolveTabFromDocument({} as any, 'doc1', 't.x')).toThrow(/Omit tabId/);
+  });
+});
+
+describe('buildUpdateTextStyleRequest', () => {
+  it('sets link.url when linkUrl is a string', () => {
+    const result = buildUpdateTextStyleRequest(5, 10, { linkUrl: 'https://example.com' });
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({
+      url: 'https://example.com',
+    });
+    expect(result!.request.updateTextStyle!.fields).toBe('link');
+  });
+
+  it('clears link when linkUrl is null (empty link object with fields=link)', () => {
+    const result = buildUpdateTextStyleRequest(5, 10, { linkUrl: null });
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({});
+    expect(result!.request.updateTextStyle!.fields).toBe('link');
+  });
+
+  it('omits link from request when linkUrl is undefined', () => {
+    const result = buildUpdateTextStyleRequest(5, 10, { bold: true });
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toBeUndefined();
+    expect(result!.request.updateTextStyle!.fields).toBe('bold');
   });
 });

@@ -563,7 +563,9 @@ export function buildUpdateTextStyleRequest(
     fieldsToUpdate.push('backgroundColor');
   }
   if (style.linkUrl !== undefined) {
-    textStyle.link = { url: style.linkUrl };
+    // null clears the hyperlink: Docs API accepts an empty link object with
+    // fields: 'link' to remove the link from the range.
+    textStyle.link = style.linkUrl === null ? {} : { url: style.linkUrl };
     fieldsToUpdate.push('link');
   }
   // TODO: Handle clearing formatting
