@@ -64,7 +64,10 @@ describe('addListItem', () => {
       { log: mockLog }
     );
 
-    expect(result).toMatch(/Added new list item after donor/);
+    // donor at [45, 65), text "Hiza geri (Knee strike)" (23 chars)
+    // → new item lives at [65, 65 + 23 + 1) = [65, 89)
+    expect(result).toMatch(/Added new list item at paragraph 65-89/);
+    expect(result).toMatch(/after donor at 45-65/);
     const requests = mockExecuteBatchUpdate.mock.calls[0][2];
     expect(requests[0].insertText?.text).toBe('\nHiza geri (Knee strike)');
     // donor.endIndex = 65 → insert at 64 (just before trailing newline)
@@ -106,6 +109,24 @@ describe('addListItem', () => {
 
     const requests = mockExecuteBatchUpdate.mock.calls[0][2];
     expect(requests[0].insertText?.location?.tabId).toBe('t.only');
+  });
+
+  it("reports the new item's range, not the donor's pre-split range (regression for #30)", async () => {
+    mockGetDocsClient.mockResolvedValue(makeMockDocs({}) as any);
+    mockGetParagraphRange.mockResolvedValue({ startIndex: 5570, endIndex: 5613 });
+
+    const result = await toolExecute(
+      {
+        documentId: 'doc1',
+        donor: { indexWithinDonor: 5580 },
+        text: 'Elbow-knee connection',
+      },
+      { log: mockLog }
+    );
+
+    // text length 21 → new item at [5613, 5613 + 21 + 1) = [5613, 5635)
+    expect(result).toMatch(/Added new list item at paragraph 5613-5635/);
+    expect(result).not.toMatch(/Added new list item after donor at paragraph 5570-5613/);
   });
 
   it('errors clearly when the donor text cannot be found', async () => {

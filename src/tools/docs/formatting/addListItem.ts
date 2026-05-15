@@ -112,7 +112,14 @@ export function register(server: FastMCP) {
         { insertText: { location: insertLocation, text: `\n${args.text}` } },
       ]);
 
-      return `Added new list item after donor at paragraph ${donorParagraph.startIndex}-${donorParagraph.endIndex}${effectiveTabId ? ` in tab ${effectiveTabId}` : ''}. The new item inherits the donor's bullet style.`;
+      // Splitting math: the donor pre-split spans [donorStart, donorEnd) with
+      // its trailing newline at donorEnd - 1. Inserting `\n<text>` at that
+      // position adds text.length + 1 characters. After the split:
+      //   donor → [donorStart, donorEnd)   (inserted \n becomes its new trailing \n)
+      //   new   → [donorEnd, donorEnd + text.length + 1)   (original \n is its trailing \n)
+      const newItemStart = donorParagraph.endIndex;
+      const newItemEnd = newItemStart + args.text.length + 1;
+      return `Added new list item at paragraph ${newItemStart}-${newItemEnd}${effectiveTabId ? ` in tab ${effectiveTabId}` : ''} (after donor at ${donorParagraph.startIndex}-${donorParagraph.endIndex}). The new item inherits the donor's bullet style.`;
     },
   });
 }
