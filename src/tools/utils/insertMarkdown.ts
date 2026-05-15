@@ -70,6 +70,9 @@ export function register(server: FastMCP) {
       'Inserts markdown-formatted content at a chosen position in a document. ' +
       'Target by character index, or anchor to existing text with position before/after. ' +
       'Supports headings, bold/italic/strikethrough, links, bullet/numbered lists, code blocks, and tables. ' +
+      'Paragraph-level styling in the markdown (`### heading`, `- bullet`, etc.) overrides ' +
+      'the paragraph style of the target position — bullets stay bullets even when inserting ' +
+      'into a heading paragraph. ' +
       'This is the tool to reach for when you need to insert a new section (with its own heading and styling) in the middle of an existing document — neither appendMarkdown (end-only) nor findAndReplace (text-only) covers that case.',
     parameters: InsertMarkdownParameters,
     execute: async (args, { log }) => {
