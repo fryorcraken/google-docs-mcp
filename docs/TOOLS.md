@@ -16,20 +16,23 @@ Tradeoff: one extra round-trip per new capability the agent uses (search → des
 
 For agents asking "how do I edit this Google Doc in place?":
 
-| Action                                           | Tool(s)                                                                                    |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| Insert text/structure at an index                | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*`       |
-| **Insert markdown-formatted content**            | **`insertMarkdown`** (by index, or anchored to text with `before`/`after`)                 |
-| Delete a range                                   | `deleteRange`                                                                              |
-| Find and replace text (no formatting)            | `findAndReplace`, `modifyText`                                                             |
-| **Replace a range with markdown formatting**     | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                           |
-| Restyle a range                                  | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                              |
-| **Add/remove bullets**                           | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`) |
-| **Add an item to an existing custom-glyph list** | **`addListItem`** (insert after a donor paragraph already in the desired list)             |
-| Replace whole doc with markdown                  | `replaceDocumentWithMarkdown`                                                              |
-| Append                                           | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                           |
-| Edit table contents                              | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`            |
-| Manage comments                                  | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                          |
+| Action                                              | Tool(s)                                                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Insert text/structure at an index                   | `insertText`, `insertTable`, `insertPageBreak`, `insertSectionBreak`, `insertImage*`                   |
+| **Insert markdown-formatted content**               | **`insertMarkdown`** (by index, or anchored to text with `before`/`after`)                             |
+| Delete a range                                      | `deleteRange`                                                                                          |
+| **Delete an entire paragraph by text anchor**       | **`deleteParagraphContaining`** (resolves paragraph from current state, no index math)                 |
+| **Get a paragraph's range without reading the doc** | **`findParagraphRange`** (by `textToFind` or `indexWithinParagraph`)                                   |
+| Find and replace text (no formatting)               | `findAndReplace`, `modifyText`                                                                         |
+| **Replace a range with markdown formatting**        | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                                       |
+| Restyle a range                                     | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                                          |
+| **Add/remove bullets**                              | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`)             |
+| **Unbullet a paragraph (one-shot)**                 | **`unbulletParagraph`** — optional prefix-strip + bullet removal + namedStyleType + inline-style clear |
+| **Add an item to an existing custom-glyph list**    | **`addListItem`** (insert after a donor paragraph already in the desired list)                         |
+| Replace whole doc with markdown                     | `replaceDocumentWithMarkdown`                                                                          |
+| Append                                              | `appendToGoogleDoc`, `appendMarkdownToGoogleDoc`                                                       |
+| Edit table contents                                 | `editTableCell`, `replaceTableRowData`, `appendDocTableRows`, `deleteTableRows`                        |
+| Manage comments                                     | `addComment`, `replyToComment`, `resolveComment`, `deleteComment`                                      |
 
 Canonical workflow: `readDocument` with `format='json'` → find indices → call the right verb. Use `format='markdown'` first if you need to inspect the content human-readably.
 
