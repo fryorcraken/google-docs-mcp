@@ -27,6 +27,15 @@ export interface ExtractedHeading {
   startIndex: number | null;
   endIndex: number | null;
   tableIdFollowing?: string;
+  /**
+   * The Docs API's opaque, read-only heading ID (`paragraphStyle.headingId`).
+   * Absent when the paragraph's own `paragraphStyle.headingId` field wasn't
+   * included in the `documents.get` fields mask that produced `doc`, or when
+   * the paragraph has no heading style. Use this ID with `Link.heading` to
+   * build a real internal document link — a plain heading-text match is not
+   * a stable target across edits.
+   */
+  headingId?: string;
 }
 
 export interface ExtractedTableColumnStyle {
@@ -370,6 +379,34 @@ export function findHeadings(
       startIndex: element.startIndex ?? null,
       endIndex: element.endIndex ?? null,
       tableIdFollowing,
+      headingId: element.paragraph?.paragraphStyle?.headingId ?? undefined,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Lists every heading paragraph in a tab (or the legacy body), in document
+ * order, with its `headingId` when present. Unlike {@link findHeadings} this
+ * doesn't filter by heading text — it's the discovery step for building a
+ * real internal link with `Link.heading`, where the caller needs the ID
+ * before it knows which heading it wants.
+ */
+export function listAllHeadings(doc: docs_v1.Schema$Document, tabId?: string): ExtractedHeading[] {
+  const content = getContentSource(doc, tabId);
+  const results: ExtractedHeading[] = [];
+
+  for (const element of content) {
+    const namedStyleType = element.paragraph?.paragraphStyle?.namedStyleType;
+    if (!namedStyleType || !namedStyleType.startsWith('HEADING_')) continue;
+
+    results.push({
+      headingText: extractParagraphText(element.paragraph).trim(),
+      headingLevel: namedStyleType,
+      startIndex: element.startIndex ?? null,
+      endIndex: element.endIndex ?? null,
+      headingId: element.paragraph?.paragraphStyle?.headingId ?? undefined,
     });
   }
 

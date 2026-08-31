@@ -34,7 +34,7 @@ export function register(server: FastMCP) {
           documentId: args.documentId,
           includeTabsContent: true,
           fields:
-            'body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content)))))))))))',
+            'body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType,headingId),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType,headingId),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content)))))))))))',
         });
 
         const sections = findHeadings(res.data, args.headings, args.tabId);

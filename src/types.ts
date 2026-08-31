@@ -142,9 +142,33 @@ export const TextStyleParameters = z
       .describe(
         'Make the text a hyperlink pointing to this URL (http or https only). Pass null to clear an existing hyperlink from the range.'
       ),
+    linkHeading: z
+      .object({
+        headingId: z
+          .string()
+          .min(1)
+          .describe("The target heading's ID, from listHeadings' headingId field."),
+        tabId: z
+          .string()
+          .optional()
+          .describe(
+            "The tab containing the target heading, if it's in a different tab than the linked text " +
+              "(or than the tool's own tabId argument). Omit for a same-tab link."
+          ),
+      })
+      .optional()
+      .describe(
+        "Make the text a real internal link to a heading (Google Docs' native heading anchor), same tab " +
+          'or a different one. Use listHeadings to get headingId. Unlike linkUrl, this stays correct if the ' +
+          'heading text is later edited. Mutually exclusive with linkUrl in a single call.'
+      ),
     // clearDirectFormatting: z.boolean().optional().describe('If true, attempts to clear all direct text formatting within the range before applying new styles.') // Harder to implement perfectly
   })
-  .describe('Parameters for character-level text formatting.');
+  .describe('Parameters for character-level text formatting.')
+  .refine((data) => !(data.linkUrl !== undefined && data.linkHeading !== undefined), {
+    message: 'Provide at most one of linkUrl or linkHeading, not both.',
+    path: ['linkHeading'],
+  });
 
 // Subset of TextStyle used for passing to helpers
 export type TextStyleArgs = z.infer<typeof TextStyleParameters>;

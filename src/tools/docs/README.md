@@ -37,6 +37,7 @@ docs/
 | `listDocumentTables`    | Lists tables in a document with MCP table IDs                                                                |
 | `getTableStructure`     | Returns row/column/cell structure for a table                                                                |
 | `findSectionsByHeading` | Finds heading sections and the table that follows them                                                       |
+| `listHeadings`          | Lists every heading in a tab with its `headingId`, for building real internal links with `linkHeading`       |
 | `replaceTableRowData`   | Replaces the contents of an existing table row                                                               |
 | `appendDocTableRows`    | Appends rows to an existing table without replacing the whole document                                       |
 | `deleteTableRows`       | Deletes one or more rows from an existing table                                                              |

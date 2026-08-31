@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hexToRgbColor, validateHexColor } from './types.js';
+import { hexToRgbColor, validateHexColor, TextStyleParameters } from './types.js';
 
 describe('Color Validation and Conversion', () => {
   describe('validateHexColor', () => {
@@ -54,5 +54,36 @@ describe('Color Validation and Conversion', () => {
       expect(hexToRgbColor('#12345')).toBeNull();
       expect(hexToRgbColor('invalid')).toBeNull();
     });
+  });
+});
+
+describe('TextStyleParameters', () => {
+  it('accepts linkHeading with just a headingId', () => {
+    const result = TextStyleParameters.safeParse({
+      linkHeading: { headingId: 'h.abc123' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts linkHeading with a cross-tab tabId', () => {
+    const result = TextStyleParameters.safeParse({
+      linkHeading: { headingId: 'h.abc123', tabId: 't.target' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects linkHeading and linkUrl together', () => {
+    const result = TextStyleParameters.safeParse({
+      linkUrl: 'https://example.com',
+      linkHeading: { headingId: 'h.abc123' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an empty headingId', () => {
+    const result = TextStyleParameters.safeParse({
+      linkHeading: { headingId: '' },
+    });
+    expect(result.success).toBe(false);
   });
 });

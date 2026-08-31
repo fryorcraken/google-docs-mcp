@@ -26,6 +26,7 @@ For agents asking "how do I edit this Google Doc in place?":
 | Find and replace text (no formatting)               | `findAndReplace`, `modifyText`                                                                         |
 | **Replace a range with markdown formatting**        | **`replaceRangeWithMarkdown`** (range or `textToFind` targeting)                                       |
 | Restyle a range                                     | `applyTextStyle`, `applyParagraphStyle`, `formatMatchingText`                                          |
+| **Link text to a heading (same or another tab)**    | **`listHeadings`** to get `headingId`, then `applyTextStyle`/`modifyText` with `style.linkHeading`     |
 | **Add/remove bullets**                              | **`updateParagraphBullets`** (`action: 'remove' \| 'set'` with `bulletPreset` for `'set'`)             |
 | **Unbullet a paragraph (one-shot)**                 | **`unbulletParagraph`** — optional prefix-strip + bullet removal + namedStyleType + inline-style clear |
 | **Add an item to an existing custom-glyph list**    | **`addListItem`** (insert after a donor paragraph already in the desired list)                         |

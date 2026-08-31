@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractDocumentTables, findHeadings, getTableById } from './structureHelpers.js';
+import {
+  extractDocumentTables,
+  findHeadings,
+  getTableById,
+  listAllHeadings,
+} from './structureHelpers.js';
 
 const mockDocument = {
   body: {
@@ -163,6 +168,75 @@ describe('structureHelpers', () => {
         startIndex: 120,
         endIndex: 145,
         tableIdFollowing: undefined,
+      },
+    ]);
+  });
+
+  it('carries headingId through findHeadings when present in the paragraph style', () => {
+    const docWithHeadingId = {
+      body: {
+        content: [
+          {
+            startIndex: 1,
+            endIndex: 10,
+            paragraph: {
+              paragraphStyle: { namedStyleType: 'HEADING_1', headingId: 'h.abc123' },
+              elements: [{ textRun: { content: 'Setup\n' } }],
+            },
+          },
+        ],
+      },
+    } as any;
+
+    const sections = findHeadings(docWithHeadingId, ['Setup']);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].headingId).toBe('h.abc123');
+  });
+
+  it('lists all headings in document order with their headingId, ignoring non-heading paragraphs', () => {
+    const headings = listAllHeadings(mockDocument);
+
+    expect(headings).toEqual([
+      {
+        headingText: '今回のスプリントのタスク',
+        headingLevel: 'HEADING_2',
+        startIndex: 1,
+        endIndex: 25,
+        headingId: undefined,
+      },
+      {
+        headingText: '5. TDAからTAPへの確認事項',
+        headingLevel: 'HEADING_2',
+        startIndex: 120,
+        endIndex: 145,
+        headingId: undefined,
+      },
+    ]);
+  });
+
+  it('listAllHeadings surfaces headingId when present', () => {
+    const docWithHeadingId = {
+      body: {
+        content: [
+          {
+            startIndex: 1,
+            endIndex: 10,
+            paragraph: {
+              paragraphStyle: { namedStyleType: 'HEADING_1', headingId: 'h.xyz789' },
+              elements: [{ textRun: { content: 'Intro\n' } }],
+            },
+          },
+        ],
+      },
+    } as any;
+
+    expect(listAllHeadings(docWithHeadingId)).toEqual([
+      {
+        headingText: 'Intro',
+        headingLevel: 'HEADING_1',
+        startIndex: 1,
+        endIndex: 10,
+        headingId: 'h.xyz789',
       },
     ]);
   });

@@ -568,6 +568,18 @@ export function buildUpdateTextStyleRequest(
     textStyle.link = style.linkUrl === null ? {} : { url: style.linkUrl };
     fieldsToUpdate.push('link');
   }
+  if (style.linkHeading !== undefined) {
+    // Link.heading (not the legacy headingId field) is required for tabbed
+    // documents — this codebase always reads with includeTabsContent: true,
+    // so the modern object form is the only one guaranteed to round-trip.
+    textStyle.link = {
+      heading: {
+        id: style.linkHeading.headingId,
+        tabId: style.linkHeading.tabId ?? tabId,
+      },
+    };
+    fieldsToUpdate.push('link');
+  }
   // TODO: Handle clearing formatting
 
   if (fieldsToUpdate.length === 0) return null; // No styles to apply

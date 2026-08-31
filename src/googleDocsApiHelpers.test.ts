@@ -785,4 +785,28 @@ describe('buildUpdateTextStyleRequest', () => {
     expect(result!.request.updateTextStyle!.textStyle!.link).toBeUndefined();
     expect(result!.request.updateTextStyle!.fields).toBe('bold');
   });
+
+  it('sets link.heading with the linkHeading tabId when provided (cross-tab link)', () => {
+    const result = buildUpdateTextStyleRequest(5, 10, {
+      linkHeading: { headingId: 'h.abc123', tabId: 't.target' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({
+      heading: { id: 'h.abc123', tabId: 't.target' },
+    });
+    expect(result!.request.updateTextStyle!.fields).toBe('link');
+  });
+
+  it('sets link.heading falling back to the range tabId when linkHeading.tabId is omitted (same-tab link)', () => {
+    const result = buildUpdateTextStyleRequest(
+      5,
+      10,
+      { linkHeading: { headingId: 'h.abc123' } },
+      't.source'
+    );
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({
+      heading: { id: 'h.abc123', tabId: 't.source' },
+    });
+  });
 });
