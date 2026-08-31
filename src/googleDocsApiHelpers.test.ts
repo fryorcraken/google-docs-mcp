@@ -809,4 +809,33 @@ describe('buildUpdateTextStyleRequest', () => {
       heading: { id: 'h.abc123', tabId: 't.source' },
     });
   });
+
+  it('sets link.heading.tabId to undefined when neither linkHeading.tabId nor the range tabId is provided', () => {
+    // This is the shape a caller gets on a legacy (non-tabbed) document, or
+    // if an upstream caller fails to resolve/pass its own tabId (regression:
+    // applyTextStyle used to pass its raw, possibly-undefined tabId straight
+    // through instead of resolving it via resolveTab first — see
+    // applyTextStyle.test.ts for the fixed tool-level behavior).
+    const result = buildUpdateTextStyleRequest(5, 10, {
+      linkHeading: { headingId: 'h.abc123' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({
+      heading: { id: 'h.abc123', tabId: undefined },
+    });
+  });
+
+  it('allows linkUrl: null (clear) together with linkHeading (clear-and-relink in one call)', () => {
+    const result = buildUpdateTextStyleRequest(5, 10, {
+      linkUrl: null,
+      linkHeading: { headingId: 'h.abc123', tabId: 't.target' },
+    });
+    expect(result).not.toBeNull();
+    // linkHeading is processed after linkUrl, so it wins the final value.
+    expect(result!.request.updateTextStyle!.textStyle!.link).toEqual({
+      heading: { id: 'h.abc123', tabId: 't.target' },
+    });
+    // 'link' must appear exactly once in the fields mask, not duplicated.
+    expect(result!.request.updateTextStyle!.fields).toBe('link');
+  });
 });

@@ -578,7 +578,10 @@ export function buildUpdateTextStyleRequest(
         tabId: style.linkHeading.tabId ?? tabId,
       },
     };
-    fieldsToUpdate.push('link');
+    // linkUrl: null (clear) + linkHeading (set) is a valid clear-and-relink
+    // combination allowed by the TextStyleParameters refine — don't push
+    // 'link' twice into the fields mask in that case.
+    if (!fieldsToUpdate.includes('link')) fieldsToUpdate.push('link');
   }
   // TODO: Handle clearing formatting
 

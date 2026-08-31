@@ -187,5 +187,19 @@ describe('buildModifyTextRequests', () => {
       expect(style.textStyle!.fontSize).toEqual({ magnitude: 14, unit: 'PT' });
       expect(style.fields).toBe('bold,italic,fontSize');
     });
+
+    it('should build a link.heading request when style.linkHeading is provided, using the passed tabId as fallback', () => {
+      const requests = buildModifyTextRequests({
+        startIndex: 1,
+        endIndex: 5,
+        style: { linkHeading: { headingId: 'h.abc123' } },
+        tabId: 't.source',
+      });
+
+      expect(requests).toHaveLength(1);
+      const style = requests[0].updateTextStyle!;
+      expect(style.textStyle!.link).toEqual({ heading: { id: 'h.abc123', tabId: 't.source' } });
+      expect(style.fields).toBe('link');
+    });
   });
 });

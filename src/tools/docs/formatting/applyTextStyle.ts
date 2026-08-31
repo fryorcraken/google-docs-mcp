@@ -23,6 +23,9 @@ export function register(server: FastMCP) {
       );
 
       try {
+        const tab = await GDocsHelpers.resolveTab(docs, args.documentId, args.tabId);
+        const effectiveTabId = tab.tabId;
+
         // Determine target range
         if ('textToFind' in args.target) {
           const range = await GDocsHelpers.findTextRange(
@@ -30,11 +33,11 @@ export function register(server: FastMCP) {
             args.documentId,
             args.target.textToFind,
             args.target.matchInstance,
-            args.tabId
+            effectiveTabId
           );
           if (!range) {
             throw new UserError(
-              `Could not find instance ${args.target.matchInstance} of text "${args.target.textToFind}"${args.tabId ? ` in tab ${args.tabId}` : ''}.`
+              `Could not find instance ${args.target.matchInstance} of text "${args.target.textToFind}"${effectiveTabId ? ` in tab ${effectiveTabId}` : ''}.`
             );
           }
           startIndex = range.startIndex;
@@ -56,14 +59,14 @@ export function register(server: FastMCP) {
           startIndex,
           endIndex,
           args.style,
-          args.tabId
+          effectiveTabId
         );
         if (!requestInfo) {
           return 'No valid text styling options were provided.';
         }
 
         await GDocsHelpers.executeBatchUpdate(docs, args.documentId, [requestInfo.request]);
-        return `Successfully applied text style (${requestInfo.fields.join(', ')}) to range ${startIndex}-${endIndex}${args.tabId ? ` in tab ${args.tabId}` : ''}.`;
+        return `Successfully applied text style (${requestInfo.fields.join(', ')}) to range ${startIndex}-${endIndex}${effectiveTabId ? ` in tab ${effectiveTabId}` : ''}.`;
       } catch (error: any) {
         log.error(`Error applying text style in doc ${args.documentId}: ${error.message || error}`);
         if (error instanceof UserError) throw error;

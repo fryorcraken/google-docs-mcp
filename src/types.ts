@@ -165,10 +165,16 @@ export const TextStyleParameters = z
     // clearDirectFormatting: z.boolean().optional().describe('If true, attempts to clear all direct text formatting within the range before applying new styles.') // Harder to implement perfectly
   })
   .describe('Parameters for character-level text formatting.')
-  .refine((data) => !(data.linkUrl !== undefined && data.linkHeading !== undefined), {
-    message: 'Provide at most one of linkUrl or linkHeading, not both.',
-    path: ['linkHeading'],
-  });
+  .refine(
+    // linkUrl: null means "clear the existing link," not "set a URL link," so
+    // it's compatible with linkHeading in the same call (clear-and-relink).
+    // Only a truthy linkUrl conflicts with linkHeading.
+    (data) => !(data.linkUrl != null && data.linkHeading !== undefined),
+    {
+      message: 'Provide at most one of linkUrl or linkHeading, not both.',
+      path: ['linkHeading'],
+    }
+  );
 
 // Subset of TextStyle used for passing to helpers
 export type TextStyleArgs = z.infer<typeof TextStyleParameters>;

@@ -75,6 +75,35 @@ describe('listHeadings', () => {
     ]);
   });
 
+  it('drops the headingId key from the JSON output when the heading paragraph has none', async () => {
+    // JSON.stringify drops keys whose value is undefined, so a heading with
+    // namedStyleType but no headingId serializes to an object with no
+    // "headingId" key at all — not "headingId": null. Assert on the parsed
+    // JSON (not the in-memory ExtractedHeading object) since that's what a
+    // real MCP caller actually sees.
+    const mockDocs = makeMockDocs({
+      body: {
+        content: [
+          {
+            startIndex: 1,
+            endIndex: 10,
+            paragraph: {
+              paragraphStyle: { namedStyleType: 'HEADING_1' },
+              elements: [{ textRun: { content: 'Untitled section\n' } }],
+            },
+          },
+        ],
+      },
+    });
+    mockGetDocsClient.mockResolvedValue(mockDocs as any);
+
+    const result = await toolExecute({ documentId: 'doc1' }, { log: mockLog });
+    const parsed = JSON.parse(result);
+
+    expect(parsed.headings).toHaveLength(1);
+    expect('headingId' in parsed.headings[0]).toBe(false);
+  });
+
   it('defaults to the first tab on a tabbed document when tabId is omitted', async () => {
     const mockDocs = makeMockDocs({
       tabs: [

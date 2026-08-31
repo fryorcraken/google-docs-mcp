@@ -86,4 +86,14 @@ describe('TextStyleParameters', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts linkUrl: null (clear) together with linkHeading (clear-and-relink in one call)', () => {
+    // null means "clear the existing hyperlink," not "set a URL link," so it
+    // doesn't conflict with linkHeading the way a truthy linkUrl would.
+    const result = TextStyleParameters.safeParse({
+      linkUrl: null,
+      linkHeading: { headingId: 'h.abc123' },
+    });
+    expect(result.success).toBe(true);
+  });
 });
