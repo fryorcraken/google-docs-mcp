@@ -25,11 +25,16 @@ export function register(server: FastMCP) {
       );
 
       try {
+        // includeTabsContent: true always populates `tabs` (even for a
+        // document that predates the tabs feature — it gets one synthetic
+        // tab), and the API rejects a mask that combines it with the
+        // top-level `body` field. Read exclusively through
+        // tabs(...documentTab.body...).
         const res = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
           fields:
-            'body(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties))),table(tableRows(tableCells(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties))),table(tableRows(tableCells(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties)))))))))))',
+            'tabs(tabProperties(tabId,title),documentTab(body(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties))),table(tableRows(tableCells(content(paragraph(elements(startIndex,endIndex,dateElement(dateId,dateElementProperties),richLink(richLinkId,richLinkProperties),person(personId,personProperties)))))))))))',
         });
 
         const chips = extractSmartChips(res.data, args.tabId);

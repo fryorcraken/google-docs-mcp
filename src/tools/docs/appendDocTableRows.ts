@@ -7,6 +7,13 @@ import { DocumentIdParameter } from '../../types.js';
 import { getTableById } from './structureHelpers.js';
 import { replaceTableRowData as replaceTableRowDataInternal } from './tableRowDataHelpers.js';
 
+// includeTabsContent: true always populates `tabs` (even for a document
+// that predates the tabs feature — it gets one synthetic tab), and the API
+// rejects a mask that combines it with the top-level `body` field. Read
+// exclusively through tabs(...documentTab.body...).
+const TABLE_ROWS_FIELDS =
+  'tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))';
+
 export function register(server: FastMCP) {
   server.addTool({
     name: 'appendDocTableRows',
@@ -39,8 +46,7 @@ export function register(server: FastMCP) {
         const res = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
-          fields:
-            'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
+          fields: TABLE_ROWS_FIELDS,
         });
 
         const table = getTableById(res.data, args.tableId, args.tabId);
@@ -77,8 +83,7 @@ export function register(server: FastMCP) {
         const refreshed = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
-          fields:
-            'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
+          fields: TABLE_ROWS_FIELDS,
         });
 
         const updatedTable = getTableById(refreshed.data, args.tableId, args.tabId);
@@ -96,8 +101,7 @@ export function register(server: FastMCP) {
                     await docs.documents.get({
                       documentId: args.documentId,
                       includeTabsContent: true,
-                      fields:
-                        'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(startIndex,endIndex,textRun(content)))))))))))',
+                      fields: TABLE_ROWS_FIELDS,
                     })
                   ).data,
                   args.tableId,

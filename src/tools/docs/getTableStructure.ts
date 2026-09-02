@@ -29,11 +29,16 @@ export function register(server: FastMCP) {
       );
 
       try {
+        // includeTabsContent: true always populates `tabs` (even for a
+        // document that predates the tabs feature — it gets one synthetic
+        // tab), and the API rejects a mask that combines it with the
+        // top-level `body` field. Read exclusively through
+        // tabs(...documentTab.body...).
         const res = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
           fields:
-            'body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(textRun(content)))))))))))',
+            'tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,table(tableRows(tableCells(startIndex,endIndex,content(startIndex,endIndex,paragraph(elements(textRun(content)))))))))))',
         });
 
         const table = getTableById(res.data, args.tableId, args.tabId);

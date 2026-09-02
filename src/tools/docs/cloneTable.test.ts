@@ -178,4 +178,15 @@ describe('table snapshot helpers', () => {
       'contentAlignment,paddingTop,paddingBottom,paddingLeft,paddingRight,rowSpan,columnSpan),content(paragraph('
     );
   });
+
+  it('never requests the top-level legacy body field alongside tabs in either documents.get field mask', () => {
+    // Regression: includeTabsContent: true + a mask containing the top-level
+    // `body` field is rejected by the real Docs API with "Field mask may not
+    // contain legacy text-level Document resource fields while requesting
+    // tabs content." Assert directly on the source's field-mask strings,
+    // since both masks here are built as source-level constants/literals.
+    const source = readFileSync(new URL('./cloneTable.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/fields:\s*\n?\s*'body\(/);
+    expect(source).not.toMatch(/=\s*\n?\s*'body\(/);
+  });
 });
