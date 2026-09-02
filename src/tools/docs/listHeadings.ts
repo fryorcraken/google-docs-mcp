@@ -24,10 +24,17 @@ export function register(server: FastMCP) {
       );
 
       try {
+        // `includeTabsContent: true` always populates `tabs` (even for a
+        // document that predates the tabs feature — it gets one synthetic
+        // tab), and the API rejects a mask that combines it with the
+        // top-level `body` field ("Field mask may not contain legacy
+        // text-level Document resource fields while requesting tabs
+        // content"). Read exclusively through tabs(...documentTab.body...);
+        // getContentSource's tabs[0] fallback covers the no-tabId case.
         const res = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
-          fields: `body(${HEADING_CONTENT_FIELDS}),tabs(${GDocsHelpers.TAB_RESOLUTION_FIELDS_INNER},documentTab(body(${HEADING_CONTENT_FIELDS})))`,
+          fields: `tabs(${GDocsHelpers.TAB_RESOLUTION_FIELDS_INNER},documentTab(body(${HEADING_CONTENT_FIELDS})))`,
         });
 
         const tab = GDocsHelpers.resolveTabFromDocument(res.data, args.documentId, args.tabId);

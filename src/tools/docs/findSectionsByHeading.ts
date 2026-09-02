@@ -30,11 +30,19 @@ export function register(server: FastMCP) {
       );
 
       try {
+        // includeTabsContent: true always populates `tabs` (even for a
+        // document that predates the tabs feature — it gets one synthetic
+        // tab), and the API rejects a mask that combines it with the
+        // top-level `body` field ("Field mask may not contain legacy
+        // text-level Document resource fields while requesting tabs
+        // content"). Read exclusively through tabs(...documentTab.body...);
+        // getContentSource's tabs[0] fallback covers the no-tabId case.
+        const contentFields =
+          'content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType,headingId),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content))))))))';
         const res = await docs.documents.get({
           documentId: args.documentId,
           includeTabsContent: true,
-          fields:
-            'body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType,headingId),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content))))))))),tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,endIndex,paragraph(paragraphStyle(namedStyleType,headingId),elements(textRun(content))),table(tableRows(tableCells(startIndex,endIndex,content(paragraph(elements(textRun(content)))))))))))',
+          fields: `tabs(tabProperties(tabId,title),documentTab(body(${contentFields})))`,
         });
 
         const sections = findHeadings(res.data, args.headings, args.tabId);
